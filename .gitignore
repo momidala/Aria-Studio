@@ -41,3 +41,6 @@ build_pkg/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Platform-level planning (managed in THerD-platform)
+.planning/
