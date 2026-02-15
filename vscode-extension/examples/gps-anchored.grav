@@ -1,0 +1,29 @@
+// GPS-Anchored World - Objects placed at real GPS coordinates
+// This world places AR objects at specific real-world locations
+// Set your GPS origin in manifest.json
+
+func main() {
+    // Create a virtual information sign at a GPS location
+    // Coordinates are relative to the world origin (set in manifest.json)
+    var sign = Aria.createObject("info_sign", "models/sign.glb");
+    sign.setPosition(0.0, 1.5, 0.0);  // 1.5 meters above ground at origin
+
+    // Create a GPS anchor at a specific location
+    // Latitude and longitude in decimal degrees
+    var entrance = GPS.createAnchor(37.7749, -122.4194, 0.0);
+
+    // Attach the sign to the GPS anchor
+    // The sign will appear at the real-world GPS location
+    sign.setAnchor(entrance);
+
+    // Create another object nearby
+    var statue = Aria.createObject("statue", "models/statue.glb");
+    statue.setPosition(5.0, 0.0, 0.0);  // 5 meters east of origin
+    statue.setScale(1.5, 1.5, 1.5);
+
+    // Check distance between two GPS points
+    var dist = GPS.distance(37.7749, -122.4194, 37.7750, -122.4193);
+    System.print("Distance: " + dist + " meters");
+
+    return null;
+}

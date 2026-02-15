@@ -1,0 +1,46 @@
+// Interactive Gallery - Indoor AR with touch and audio
+// Best for museum/gallery installations
+// Uses AprilTag markers for indoor positioning (see manifest.json)
+
+func main() {
+    // Create art pieces
+    var painting = Aria.createObject("mona_lisa", "models/frame.glb");
+    painting.setPosition(0.0, 1.6, -2.0);  // Eye level on wall
+
+    var sculpture = Aria.createObject("abstract", "models/sculpture.glb");
+    sculpture.setPosition(3.0, 0.5, 0.0);  // On pedestal
+    sculpture.setScale(0.8, 0.8, 0.8);
+
+    // Add background music (non-spatial, plays everywhere)
+    var bgMusic = Audio.play("sounds/ambient-gallery.mp3");
+
+    // Add spatial audio near the sculpture
+    // Sound gets louder as you walk closer
+    var sculptureAudio = Audio.play3D(
+        "sounds/artist-commentary.mp3",
+        3.0, 1.0, 0.0  // Same position as sculpture
+    );
+
+    // Set overall volume
+    Audio.setMasterVolume(0.7);
+
+    // Handle tap on painting - show info
+    Input.onTap(func(event) {
+        System.print("Tapped at: " + event.x + ", " + event.y);
+    });
+
+    // Handle pinch to zoom on sculpture
+    Input.onPinch(func(event) {
+        var currentScale = sculpture.getScale();
+        var newScale = currentScale.x * event.scale;
+        sculpture.setScale(newScale, newScale, newScale);
+    });
+
+    // Handle swipe to rotate sculpture
+    Input.onSwipe(func(event) {
+        System.print("Swiped with velocity: " + event.velocity);
+    });
+
+    System.print("Gallery loaded - tap and interact with objects!");
+    return null;
+}

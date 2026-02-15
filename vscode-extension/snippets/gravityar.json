@@ -1,0 +1,265 @@
+{
+  "Create AR World": {
+    "prefix": "world",
+    "description": "Create a new AR world with main entry point",
+    "body": [
+      "// Main entry point for your AR world",
+      "// This function runs when the world loads",
+      "func main() {",
+      "\t// Create your AR objects here",
+      "\t${1:var cube = Aria.createObject(\"${2:myObject}\", \"models/${3:cube.gltf}\"\\);}",
+      "\t",
+      "\t// Position the object in 3D space",
+      "\t${1:cube}.setPosition(${4:0.0}, ${5:1.5}, ${6:-2.0});",
+      "\t",
+      "\tSystem.print(\"AR world loaded!\");",
+      "\treturn null;",
+      "}",
+      "$0"
+    ]
+  },
+  "Create 3D Object": {
+    "prefix": ["mesh", "object"],
+    "description": "Create a 3D mesh object in AR space",
+    "body": [
+      "// Create a 3D object from a model file",
+      "var ${1:objectName} = Aria.createObject(",
+      "\t\"${2:uniqueName}\",        // Unique identifier for this object",
+      "\t\"models/${3:model.gltf}\"  // Path to GLTF/GLB model file in assets/",
+      ");",
+      "$0"
+    ]
+  },
+  "Set Object Position": {
+    "prefix": "position",
+    "description": "Set object position in 3D space",
+    "body": [
+      "// Set position in meters (x=left/right, y=up/down, z=forward/back)",
+      "${1:object}.setPosition(",
+      "\t${2:0.0},  // x: meters left(-) or right(+) from origin",
+      "\t${3:1.5},  // y: meters down(-) or up(+) from origin (1.5 ≈ eye level)",
+      "\t${4:-2.0}  // z: meters back(-) or forward(+) from origin",
+      ");",
+      "$0"
+    ]
+  },
+  "Set Object Rotation": {
+    "prefix": "rotation",
+    "description": "Set object rotation using quaternion",
+    "body": [
+      "// Set rotation as quaternion (x, y, z, w)",
+      "// Tip: Use (0, 0, 0, 1) for no rotation",
+      "// For common rotations, use online quaternion calculator",
+      "${1:object}.setRotation(",
+      "\t${2:0.0},  // x component",
+      "\t${3:0.0},  // y component",
+      "\t${4:0.0},  // z component",
+      "\t${5:1.0}   // w component (for no rotation, w=1 and x,y,z=0)",
+      ");",
+      "$0"
+    ]
+  },
+  "Set Object Scale": {
+    "prefix": "scale",
+    "description": "Set object scale (size)",
+    "body": [
+      "// Set scale multiplier (1.0 = original size, 0.5 = half size, 2.0 = double size)",
+      "${1:object}.setScale(",
+      "\t${2:1.0},  // x scale (width)",
+      "\t${3:1.0},  // y scale (height)",
+      "\t${4:1.0}   // z scale (depth)",
+      ");",
+      "$0"
+    ]
+  },
+  "Create GPS Anchor": {
+    "prefix": ["gps", "anchor"],
+    "description": "Create GPS anchor for outdoor AR positioning",
+    "body": [
+      "// Create GPS anchor at real-world location",
+      "// Altitude defaults to terrain height (most common for outdoor AR)",
+      "var ${1:anchor} = GPS.createAnchor(",
+      "\t${2:37.7749},   // latitude (decimal degrees)",
+      "\t${3:-122.4194}, // longitude (decimal degrees)",
+      "\t${4:\"terrain\"}  // altitude mode: \"terrain\" (ground level) or WGS84 ellipsoid height in meters",
+      ");",
+      "$0"
+    ]
+  },
+  "Attach Object to GPS Anchor": {
+    "prefix": "gpsattach",
+    "description": "Attach object to GPS anchor for real-world positioning",
+    "body": [
+      "// Attach object to GPS location",
+      "// Object will appear at the anchor's real-world position",
+      "${1:object}.setAnchor(${2:anchor});",
+      "$0"
+    ]
+  },
+  "GPS Distance": {
+    "prefix": "gpsdistance",
+    "description": "Calculate distance between GPS coordinates",
+    "body": [
+      "// Calculate distance in meters between two GPS points",
+      "var ${1:distance} = GPS.distance(",
+      "\t${2:lat1}, ${3:lon1},  // First point (latitude, longitude)",
+      "\t${4:lat2}, ${5:lon2}   // Second point (latitude, longitude)",
+      ");",
+      "// ${1:distance} is in meters",
+      "$0"
+    ]
+  },
+  "GPS Bearing": {
+    "prefix": "gpsbearing",
+    "description": "Get compass bearing to GPS point",
+    "body": [
+      "// Get compass bearing (0-360°) from one GPS point to another",
+      "// 0° = North, 90° = East, 180° = South, 270° = West",
+      "var ${1:bearing} = GPS.bearing(",
+      "\t${2:fromLat}, ${3:fromLon},  // Starting point",
+      "\t${4:toLat}, ${5:toLon}        // Destination point",
+      ");",
+      "// ${1:bearing} is in degrees (0-360)",
+      "$0"
+    ]
+  },
+  "Tap Handler": {
+    "prefix": ["onclick", "tap"],
+    "description": "Handle tap/click gesture",
+    "body": [
+      "// Called when user taps the screen",
+      "Input.onTap(func(event) {",
+      "\t// event.x, event.y = tap position in screen coordinates (pixels)",
+      "\tSystem.print(\"Tapped at x=\" + event.x + \" y=\" + event.y);",
+      "\t$0",
+      "});",
+      ""
+    ]
+  },
+  "Double Tap Handler": {
+    "prefix": "ondoubletap",
+    "description": "Handle double-tap gesture",
+    "body": [
+      "// Called when user double-taps the screen",
+      "Input.onDoubleTap(func(event) {",
+      "\t// event.x, event.y = tap position",
+      "\tSystem.print(\"Double-tapped at x=\" + event.x + \" y=\" + event.y);",
+      "\t$0",
+      "});",
+      ""
+    ]
+  },
+  "Swipe Handler": {
+    "prefix": "onswipe",
+    "description": "Handle swipe gesture",
+    "body": [
+      "// Called when user swipes",
+      "Input.onSwipe(func(event) {",
+      "\t// event.dx, event.dy = swipe direction vector",
+      "\t// event.velocity = swipe speed",
+      "\tSystem.print(\"Swiped with velocity \" + event.velocity);",
+      "\t$0",
+      "});",
+      ""
+    ]
+  },
+  "Pinch Handler": {
+    "prefix": "onpinch",
+    "description": "Handle pinch/zoom gesture",
+    "body": [
+      "// Called when user pinches (two-finger zoom)",
+      "Input.onPinch(func(event) {",
+      "\t// event.scale = pinch scale factor",
+      "\t// scale < 1.0 = pinching in (zoom out)",
+      "\t// scale > 1.0 = spreading out (zoom in)",
+      "\tSystem.print(\"Pinched with scale \" + event.scale);",
+      "\t$0",
+      "});",
+      ""
+    ]
+  },
+  "Pan Handler": {
+    "prefix": "onpan",
+    "description": "Handle pan/drag gesture",
+    "body": [
+      "// Called when user pans/drags",
+      "Input.onPan(func(event) {",
+      "\t// event.dx, event.dy = drag distance since last frame",
+      "\t// event.x, event.y = current touch position",
+      "\tSystem.print(\"Panned by dx=\" + event.dx + \" dy=\" + event.dy);",
+      "\t$0",
+      "});",
+      ""
+    ]
+  },
+  "Play Spatial Audio": {
+    "prefix": ["audio", "sound"],
+    "description": "Create spatial audio source at 3D position",
+    "body": [
+      "// Play 3D spatial audio (sound appears to come from a position in space)",
+      "var ${1:audioSource} = Audio.play3D(",
+      "\t\"audio/${2:sound.wav}\",  // Path to audio file in assets/",
+      "\t${3:0.0}, ${4:1.5}, ${5:-2.0},  // x, y, z position in meters",
+      "\t${6:1.0},   // volume (0.0 = silent, 1.0 = full volume)",
+      "\t${7:false}, // loop (true = repeat forever, false = play once)",
+      "\t${8:10.0}   // maxDistance in meters (sound fades beyond this distance)",
+      ");",
+      "$0"
+    ]
+  },
+  "Play Background Audio": {
+    "prefix": "audio2d",
+    "description": "Play non-spatial audio (background music/UI sounds)",
+    "body": [
+      "// Play 2D audio (not positioned in 3D space)",
+      "// Good for background music, UI sounds, narration",
+      "var ${1:audioSource} = Audio.play(",
+      "\t\"audio/${2:music.wav}\",  // Path to audio file",
+      "\t${3:1.0},   // volume (0.0 to 1.0)",
+      "\t${4:false}  // loop (true = repeat, false = play once)",
+      ");",
+      "$0"
+    ]
+  },
+  "Set Master Volume": {
+    "prefix": "volume",
+    "description": "Set master volume for all audio",
+    "body": [
+      "// Set overall volume for all sounds (0.0 = mute, 1.0 = full)",
+      "Audio.setMasterVolume(${1:1.0});",
+      "$0"
+    ]
+  },
+  "Update Loop": {
+    "prefix": "update",
+    "description": "Create update loop function (called every frame)",
+    "body": [
+      "// Called every frame - use for animations and continuous updates",
+      "func update(dt) {",
+      "\t// dt = delta time (seconds since last frame)",
+      "\t// Typical dt values: 0.016 for 60fps, 0.033 for 30fps",
+      "\t$0",
+      "}",
+      ""
+    ]
+  },
+  "Print Debug Message": {
+    "prefix": "print",
+    "description": "Print debug message to console",
+    "body": [
+      "System.print(\"${1:Debug message}: \" + ${2:value});",
+      "$0"
+    ]
+  },
+  "For Loop": {
+    "prefix": "forloop",
+    "description": "For loop iteration",
+    "body": [
+      "// Loop from ${1:0} to ${2:n}-1",
+      "for (var ${3:i} in ${1:0}..${2:n}) {",
+      "\t$0",
+      "}",
+      ""
+    ]
+  }
+}

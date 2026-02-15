@@ -1,0 +1,92 @@
+{
+  "name": "gravityar",
+  "displayName": "GravityAR",
+  "description": "GravityAR language support for THerD AR platform",
+  "version": "0.1.0",
+  "publisher": "therd-platform",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "main": "./client/out/extension.js",
+  "activationEvents": [
+    "onLanguage:gravityar"
+  ],
+  "categories": [
+    "Programming Languages",
+    "Snippets"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "gravityar",
+        "aliases": [
+          "GravityAR",
+          "Gravity AR"
+        ],
+        "extensions": [
+          ".grav",
+          ".gravity"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "gravityar",
+        "scopeName": "source.gravityar",
+        "path": "./syntaxes/gravityar.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "gravityar",
+        "path": "./snippets/gravityar.json"
+      }
+    ],
+    "configuration": {
+      "title": "GravityAR",
+      "properties": {
+        "gravityar.compilerPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to Gravity compiler executable. Leave empty to auto-detect from PATH.",
+          "scope": "machine-overridable"
+        },
+        "gravityar.enableDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable real-time error checking using Gravity compiler"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "gravityar.openExamples",
+        "title": "GravityAR: Browse Example Worlds",
+        "category": "GravityAR"
+      },
+      {
+        "command": "gravityar.compile",
+        "title": "GravityAR: Compile Current File",
+        "category": "GravityAR"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "npm run compile:client && npm run compile:server",
+    "compile:client": "tsc -b client/tsconfig.json",
+    "compile:server": "tsc -b server/tsconfig.json",
+    "watch": "tsc -b -w"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "^18.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.0",
+    "vscode-languageserver": "^9.0.0",
+    "vscode-languageserver-textdocument": "^1.0.0"
+  }
+}

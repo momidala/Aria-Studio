@@ -1,0 +1,26 @@
+// Hello Park - A simple outdoor AR world
+// Place a few objects in a park setting
+
+func main() {
+    // Create a tree at the origin
+    var tree = Aria.createObject("oak_tree", "models/tree.glb");
+    tree.setPosition(0.0, 0.0, 0.0);
+    tree.setScale(2.0, 2.0, 2.0);
+
+    // Create a bench nearby
+    var bench = Aria.createObject("park_bench", "models/bench.glb");
+    bench.setPosition(3.0, 0.0, -1.0);
+    bench.setRotation(0.0, 0.707, 0.0, 0.707);  // Rotated 90 degrees
+
+    // Create a lamp post
+    var lamp = Aria.createObject("lamp", "models/lamp.glb");
+    lamp.setPosition(-2.0, 0.0, 2.0);
+
+    System.print("Park world loaded with 3 objects");
+    return null;
+}
+Aria.// Create a 3D object from a model file
+var objectName = Aria.createObject(
+    "uniqueName",        // Unique identifier for this object
+    "models/model.gltf"  // Path to GLTF/GLB model file in assets/
+);
