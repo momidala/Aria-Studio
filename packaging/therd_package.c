@@ -3,6 +3,7 @@
  *
  * Creates validated world packages (zip archives) from directory structure.
  * Validates manifest.json schema and checks all referenced files exist.
+ * Compiles .grav Gravity scripts to .gbc bytecode during packaging.
  */
 
 #include <stdio.h>
@@ -14,6 +15,11 @@
 #include "cJSON.h"
 #include "miniz.h"
 
+#include "gravity_compiler.h"
+#include "gravity_vm.h"
+#include "gravity_core.h"
+#include "gravity_delegate.h"
+
 #define MAX_PATH_LEN 1024
 #define VERSION "0.1.0"
 
@@ -23,15 +29,23 @@ typedef struct {
     int error_capacity;
 } ValidationResult;
 
+/* Compile context for error tracking */
+typedef struct {
+    int had_error;
+    const char *src_path;
+} CompileContext;
+
 /* Forward declarations */
 static int validate_manifest(const char* dir_path, ValidationResult* result);
 static int do_create(const char* dir_path, const char* output_path);
 static int do_validate(const char* dir_path);
 static void add_error(ValidationResult* result, const char* error);
 static void free_validation_result(ValidationResult* result);
-static int file_exists(const char* path);
+static int pkg_file_exists(const char* path);
 static int add_directory_to_zip(mz_zip_archive* zip, const char* base_path, const char* rel_prefix);
 static int add_file_to_zip(mz_zip_archive* zip, const char* file_path, const char* archive_path);
+static char *compile_grav_script(const char* src_path);
+static int compile_scripts_dir(mz_zip_archive* zip, const char* base_path, const char* entry_script, char* compiled_entry);
 
 /* Add error to validation result */
 static void add_error(ValidationResult* result, const char* error) {
@@ -53,7 +67,7 @@ static void free_validation_result(ValidationResult* result) {
 }
 
 /* Check if file exists */
-static int file_exists(const char* path) {
+static int pkg_file_exists(const char* path) {
     struct stat st;
     return (stat(path, &st) == 0 && S_ISREG(st.st_mode));
 }
@@ -106,7 +120,7 @@ static int validate_manifest(const char* dir_path, ValidationResult* result) {
         /* Check entry script exists */
         char script_path[MAX_PATH_LEN];
         snprintf(script_path, sizeof(script_path), "%s/%s", dir_path, entry_script->valuestring);
-        if (!file_exists(script_path)) {
+        if (!pkg_file_exists(script_path)) {
             char error[MAX_PATH_LEN + 64];
             snprintf(error, sizeof(error), "entry_script '%s' does not exist", entry_script->valuestring);
             add_error(result, error);
@@ -131,7 +145,7 @@ static int validate_manifest(const char* dir_path, ValidationResult* result) {
 
                     char asset_path[MAX_PATH_LEN];
                     snprintf(asset_path, sizeof(asset_path), "%s/%s", dir_path, asset->valuestring);
-                    if (!file_exists(asset_path)) {
+                    if (!pkg_file_exists(asset_path)) {
                         char error[MAX_PATH_LEN + 64];
                         snprintf(error, sizeof(error), "asset '%s' does not exist", asset->valuestring);
                         add_error(result, error);
@@ -153,7 +167,7 @@ static int validate_manifest(const char* dir_path, ValidationResult* result) {
 
             char lib_path[MAX_PATH_LEN];
             snprintf(lib_path, sizeof(lib_path), "%s/%s", dir_path, lib->valuestring);
-            if (!file_exists(lib_path)) {
+            if (!pkg_file_exists(lib_path)) {
                 char error[MAX_PATH_LEN + 64];
                 snprintf(error, sizeof(error), "library '%s' does not exist", lib->valuestring);
                 add_error(result, error);
@@ -261,6 +275,165 @@ static int add_directory_to_zip(mz_zip_archive* zip, const char* base_path, cons
     return 1;
 }
 
+/* Optional classes callback — Aria runtime classes registered by VM at runtime */
+static const char **aria_optional_classes(void *xdata) {
+    (void)xdata;
+    static const char *classes[] = {"Aria", "Material", "Light", NULL};
+    return classes;
+}
+
+/* Error callback for Gravity compiler */
+static void gravity_error_cb(gravity_vm *vm, error_type_t error_type,
+                              const char *description, error_desc_t error_desc,
+                              void *xdata) {
+    (void)vm;
+    (void)error_type;
+    CompileContext *ctx = (CompileContext *)xdata;
+    ctx->had_error = 1;
+    fprintf(stderr, "  %s:%d:%d: error: %s\n",
+            ctx->src_path, error_desc.lineno, error_desc.colno, description);
+}
+
+/*
+ * Compile a single .grav source file to a JSON bytecode string.
+ * Returns a malloc'd string the caller must free, or NULL on error.
+ */
+static char *compile_grav_script(const char *src_path) {
+    /* Read source file */
+    FILE *f = fopen(src_path, "r");
+    if (!f) {
+        fprintf(stderr, "Failed to open script: %s\n", src_path);
+        return NULL;
+    }
+
+    fseek(f, 0, SEEK_END);
+    long fsize = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    char *source = malloc(fsize + 1);
+    fread(source, 1, fsize, f);
+    source[fsize] = '\0';
+    fclose(f);
+
+    /* Set up compile context and delegate */
+    CompileContext ctx = { 0, src_path };
+    gravity_delegate_t delegate;
+    memset(&delegate, 0, sizeof(delegate));
+    delegate.xdata = &ctx;
+    delegate.error_callback = gravity_error_cb;
+    delegate.optional_classes = aria_optional_classes;
+
+    /* Create compiler and run */
+    gravity_compiler_t *compiler = gravity_compiler_create(&delegate);
+    gravity_closure_t *closure = gravity_compiler_run(compiler, source, (size_t)fsize, 0, false, false);
+    free(source);
+
+    if (!closure || ctx.had_error) {
+        gravity_compiler_free(compiler);
+        return NULL;
+    }
+
+    /* Serialize to JSON bytecode */
+    json_t *json = gravity_compiler_serialize(compiler, closure);
+    gravity_compiler_free(compiler);  /* also frees closure */
+
+    if (!json) {
+        fprintf(stderr, "Failed to serialize bytecode for: %s\n", src_path);
+        return NULL;
+    }
+
+    size_t json_len = 0;
+    char *json_buf = json_buffer(json, &json_len);
+    char *result = strdup(json_buf);
+    json_free(json);
+
+    return result;
+}
+
+/*
+ * Compile all .grav scripts in base_path, adding .gbc files to zip.
+ * Non-.grav files are added as-is.
+ * entry_script: manifest entry_script value (e.g. "scripts/foo.grav")
+ * compiled_entry: output buffer (MAX_PATH_LEN) receiving compiled name
+ * Returns 1 on success, 0 on error.
+ */
+static int compile_scripts_dir(mz_zip_archive *zip, const char *base_path,
+                                const char *entry_script, char *compiled_entry) {
+    DIR *dir = opendir(base_path);
+    if (!dir) {
+        /* No scripts directory is not an error */
+        return 1;
+    }
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+
+        char full_path[MAX_PATH_LEN];
+        snprintf(full_path, sizeof(full_path), "%s/%s", base_path, entry->d_name);
+
+        struct stat st;
+        if (stat(full_path, &st) != 0 || !S_ISREG(st.st_mode)) {
+            continue;
+        }
+
+        /* Check for .grav extension */
+        const char *ext = strrchr(entry->d_name, '.');
+        if (ext && strcmp(ext, ".grav") == 0) {
+            printf("  Compiling %s...\n", entry->d_name);
+
+            char *bytecode = compile_grav_script(full_path);
+            if (!bytecode) {
+                fprintf(stderr, "Compilation failed: %s\n", full_path);
+                closedir(dir);
+                return 0;
+            }
+
+            /* Build archive path with .gbc extension */
+            size_t base_len = (size_t)(ext - entry->d_name);
+            char base_name[MAX_PATH_LEN];
+            strncpy(base_name, entry->d_name, base_len);
+            base_name[base_len] = '\0';
+
+            char archive_path[MAX_PATH_LEN];
+            snprintf(archive_path, sizeof(archive_path), "scripts/%s.gbc", base_name);
+
+            /* Check if this is the entry script */
+            if (entry_script) {
+                char expected[MAX_PATH_LEN];
+                snprintf(expected, sizeof(expected), "scripts/%s.grav", base_name);
+                if (strcmp(entry_script, expected) == 0) {
+                    strncpy(compiled_entry, archive_path, MAX_PATH_LEN - 1);
+                    compiled_entry[MAX_PATH_LEN - 1] = '\0';
+                }
+            }
+
+            mz_bool ok = mz_zip_writer_add_mem(zip, archive_path,
+                                                bytecode, strlen(bytecode),
+                                                MZ_DEFAULT_COMPRESSION);
+            free(bytecode);
+            if (!ok) {
+                fprintf(stderr, "Failed to add compiled script to zip: %s\n", archive_path);
+                closedir(dir);
+                return 0;
+            }
+        } else {
+            /* Non-.grav file: add as-is */
+            char archive_path[MAX_PATH_LEN];
+            snprintf(archive_path, sizeof(archive_path), "scripts/%s", entry->d_name);
+            if (!add_file_to_zip(zip, full_path, archive_path)) {
+                closedir(dir);
+                return 0;
+            }
+        }
+    }
+
+    closedir(dir);
+    return 1;
+}
+
 /* Create world package */
 static int do_create(const char* dir_path, const char* output_path) {
     ValidationResult result = {0};
@@ -276,28 +449,28 @@ static int do_create(const char* dir_path, const char* output_path) {
     }
     free_validation_result(&result);
 
+    /* Read manifest once for output path and entry_script */
+    char manifest_path[MAX_PATH_LEN];
+    snprintf(manifest_path, sizeof(manifest_path), "%s/manifest.json", dir_path);
+    FILE* f = fopen(manifest_path, "r");
+    fseek(f, 0, SEEK_END);
+    long fsize = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    char* manifest_content = malloc(fsize + 1);
+    fread(manifest_content, 1, fsize, f);
+    manifest_content[fsize] = '\0';
+    fclose(f);
+
+    cJSON* manifest_json = cJSON_Parse(manifest_content);
+    free(manifest_content);
+
     /* Determine output path */
     char final_output[MAX_PATH_LEN];
     if (output_path) {
         snprintf(final_output, sizeof(final_output), "%s", output_path);
     } else {
-        /* Read manifest to get world name */
-        char manifest_path[MAX_PATH_LEN];
-        snprintf(manifest_path, sizeof(manifest_path), "%s/manifest.json", dir_path);
-        FILE* f = fopen(manifest_path, "r");
-        fseek(f, 0, SEEK_END);
-        long fsize = ftell(f);
-        fseek(f, 0, SEEK_SET);
-        char* content = malloc(fsize + 1);
-        fread(content, 1, fsize, f);
-        content[fsize] = '\0';
-        fclose(f);
-
-        cJSON* json = cJSON_Parse(content);
-        free(content);
-        cJSON* name = cJSON_GetObjectItem(json, "name");
+        cJSON* name = cJSON_GetObjectItem(manifest_json, "name");
         snprintf(final_output, sizeof(final_output), "%s.therd", name->valuestring);
-        cJSON_Delete(json);
     }
 
     printf("Creating package: %s\n", final_output);
@@ -308,27 +481,50 @@ static int do_create(const char* dir_path, const char* output_path) {
 
     if (!mz_zip_writer_init_file(&zip, final_output, 0)) {
         fprintf(stderr, "Failed to create zip file: %s\n", final_output);
+        cJSON_Delete(manifest_json);
         return 1;
     }
 
-    /* Add manifest.json */
-    char manifest_path[MAX_PATH_LEN];
-    snprintf(manifest_path, sizeof(manifest_path), "%s/manifest.json", dir_path);
-    if (!add_file_to_zip(&zip, manifest_path, "manifest.json")) {
-        mz_zip_writer_end(&zip);
-        return 1;
-    }
-
-    /* Add scripts/ directory */
+    /* Compile scripts/ directory */
     char scripts_path[MAX_PATH_LEN];
     snprintf(scripts_path, sizeof(scripts_path), "%s/scripts", dir_path);
     struct stat st;
+    char compiled_entry[MAX_PATH_LEN] = {0};
+
     if (stat(scripts_path, &st) == 0 && S_ISDIR(st.st_mode)) {
-        printf("Adding scripts/...\n");
-        if (!add_directory_to_zip(&zip, scripts_path, "scripts")) {
+        printf("Compiling scripts/...\n");
+
+        cJSON* entry_script_item = cJSON_GetObjectItem(manifest_json, "entry_script");
+        const char *entry_script_val = entry_script_item ? entry_script_item->valuestring : NULL;
+
+        /* Initialize Gravity core (idempotent) */
+        gravity_core_init();
+
+        if (!compile_scripts_dir(&zip, scripts_path, entry_script_val, compiled_entry)) {
             mz_zip_writer_end(&zip);
+            cJSON_Delete(manifest_json);
             return 1;
         }
+
+        /* Update entry_script in manifest from .grav to .gbc */
+        if (entry_script_item && compiled_entry[0] != '\0') {
+            cJSON_DeleteItemFromObject(manifest_json, "entry_script");
+            cJSON_AddStringToObject(manifest_json, "entry_script", compiled_entry);
+        }
+    }
+
+    /* Serialize updated manifest and add to zip */
+    char *updated_manifest = cJSON_PrintUnformatted(manifest_json);
+    cJSON_Delete(manifest_json);
+
+    mz_bool ok = mz_zip_writer_add_mem(&zip, "manifest.json",
+                                        updated_manifest, strlen(updated_manifest),
+                                        MZ_DEFAULT_COMPRESSION);
+    free(updated_manifest);
+    if (!ok) {
+        fprintf(stderr, "Failed to add manifest.json to zip\n");
+        mz_zip_writer_end(&zip);
+        return 1;
     }
 
     /* Add assets/ directory */

@@ -8,6 +8,10 @@ import { join } from 'path';
 
 const execFileAsync = promisify(execFile);
 
+// Aria runtime classes: registered by VM at runtime, must be declared extern for compiler
+const ARIA_PRECODE = 'extern var Aria;\nextern var Material;\nextern var Light;\n';
+const PRECODE_LINE_COUNT = 3;
+
 // Debounce timeout
 let validationTimeout: NodeJS.Timeout | null = null;
 const DEBOUNCE_MS = 300;
@@ -100,7 +104,7 @@ export async function validateDocument(
     // Create temporary file with document content
     const tempFile = join(tmpdir(), `gravityar-${Date.now()}.grav`);
     try {
-        await writeFile(tempFile, document.getText(), 'utf8');
+        await writeFile(tempFile, ARIA_PRECODE + document.getText(), 'utf8');
 
         // Run compiler
         try {
@@ -130,7 +134,7 @@ function parseCompilerOutput(output: string, document: TextDocument): Diagnostic
     let match;
 
     while ((match = errorPattern.exec(output)) !== null) {
-        const line = parseInt(match[1], 10) - 1; // LSP is 0-based
+        const line = Math.max(0, parseInt(match[1], 10) - 1 - PRECODE_LINE_COUNT); // LSP is 0-based; subtract injected precode lines
         const col = match[2] ? parseInt(match[2], 10) - 1 : 0;
         const severityStr = match[3];
         const message = match[4];
