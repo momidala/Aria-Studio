@@ -88,7 +88,13 @@ static int validate_manifest(const char* dir_path, ValidationResult* result) {
     long fsize = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    char* content = malloc(fsize + 1);
+    if (fsize <= 0) {
+        fclose(f);
+        add_error(result, "manifest.json is empty or unreadable");
+        return 0;
+    }
+    char* content = malloc((size_t)fsize + 1);
+    if (!content) { fclose(f); return 0; }
     fread(content, 1, fsize, f);
     content[fsize] = '\0';
     fclose(f);
@@ -214,7 +220,13 @@ static int add_file_to_zip(mz_zip_archive* zip, const char* file_path, const cha
     long fsize = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    void* data = malloc(fsize);
+    if (fsize <= 0) {
+        fclose(f);
+        fprintf(stderr, "Error: empty or unreadable file: %s\n", file_path);
+        return 0;
+    }
+    void* data = malloc((size_t)fsize);
+    if (!data) { fclose(f); return 0; }
     fread(data, 1, fsize, f);
     fclose(f);
 
@@ -453,10 +465,17 @@ static int do_create(const char* dir_path, const char* output_path) {
     char manifest_path[MAX_PATH_LEN];
     snprintf(manifest_path, sizeof(manifest_path), "%s/manifest.json", dir_path);
     FILE* f = fopen(manifest_path, "r");
+    if (!f) { fprintf(stderr, "Error: cannot open %s\n", manifest_path); return 1; }
     fseek(f, 0, SEEK_END);
     long fsize = ftell(f);
     fseek(f, 0, SEEK_SET);
-    char* manifest_content = malloc(fsize + 1);
+    if (fsize <= 0) {
+        fclose(f);
+        fprintf(stderr, "Error: empty or unreadable file: %s\n", manifest_path);
+        return 1;
+    }
+    char* manifest_content = malloc((size_t)fsize + 1);
+    if (!manifest_content) { fclose(f); return 1; }
     fread(manifest_content, 1, fsize, f);
     manifest_content[fsize] = '\0';
     fclose(f);
@@ -470,6 +489,10 @@ static int do_create(const char* dir_path, const char* output_path) {
         snprintf(final_output, sizeof(final_output), "%s", output_path);
     } else {
         cJSON* name = cJSON_GetObjectItem(manifest_json, "name");
+        if (!name || !name->valuestring) {
+            fprintf(stderr, "Error: manifest.json missing required 'name' field\n");
+            cJSON_Delete(manifest_json); return 1;
+        }
         snprintf(final_output, sizeof(final_output), "%s.therd", name->valuestring);
     }
 
