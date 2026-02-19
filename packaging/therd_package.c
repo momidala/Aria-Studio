@@ -337,8 +337,8 @@ static char *compile_grav_script(const char *src_path) {
 
     /* Create compiler and run */
     gravity_compiler_t *compiler = gravity_compiler_create(&delegate);
+    // gravity_compiler_run takes ownership of source (is_static=false) and frees it via gravity_lexer_free
     gravity_closure_t *closure = gravity_compiler_run(compiler, source, (size_t)fsize, 0, false, false);
-    free(source);
 
     if (!closure || ctx.had_error) {
         gravity_compiler_free(compiler);
