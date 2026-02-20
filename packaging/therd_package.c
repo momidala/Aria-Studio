@@ -290,7 +290,7 @@ static int add_directory_to_zip(mz_zip_archive* zip, const char* base_path, cons
 /* Optional classes callback — Aria runtime classes registered by VM at runtime */
 static const char **aria_optional_classes(void *xdata) {
     (void)xdata;
-    static const char *classes[] = {"Aria", "Material", "Light", NULL};
+    static const char *classes[] = {"Aria", "GPS", "Input", "Audio", "Material", "Light", NULL};
     return classes;
 }
 
