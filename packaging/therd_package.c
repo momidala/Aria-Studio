@@ -598,18 +598,52 @@ static int do_validate(const char* dir_path) {
     }
 }
 
+/* Upload a .therd package to a THerD server */
+static int do_upload(const char* package_path, const char* server_url) {
+    /* Verify the package file exists */
+    if (!pkg_file_exists(package_path)) {
+        fprintf(stderr, "Error: package not found: %s\n", package_path);
+        return 1;
+    }
+
+    printf("Uploading %s to %s ...\n", package_path, server_url);
+
+    /* Build curl command — POST raw bytes, Content-Type: application/octet-stream */
+    char cmd[MAX_PATH_LEN * 2 + 256];
+    snprintf(cmd, sizeof(cmd),
+        "curl -s -w '\\nHTTP %%{http_code}\\n'"
+        " -X POST '%s/world'"
+        " --data-binary '@%s'"
+        " -H 'Content-Type: application/octet-stream'",
+        server_url, package_path);
+
+    int ret = system(cmd);
+    printf("\n");
+
+    if (ret != 0) {
+        fprintf(stderr, "Error: curl failed (is curl installed? is the server running?)\n");
+        return 1;
+    }
+
+    return 0;
+}
+
 /* Print usage */
 static void print_usage(const char* prog) {
     printf("therd-package v%s - World packaging tool for THerD Platform\n\n", VERSION);
     printf("Usage: %s <command> [options]\n\n", prog);
     printf("Commands:\n");
     printf("  create    Create world package from directory\n");
-    printf("  validate  Validate manifest.json without packaging\n\n");
+    printf("  validate  Validate manifest.json without packaging\n");
+    printf("  upload    Upload a .therd package to a world server\n\n");
     printf("Create options:\n");
     printf("  --dir <path>       World directory (contains manifest.json, scripts/, assets/)\n");
     printf("  --output <path>    Output zip file path (default: <world-name>.therd)\n\n");
     printf("Validate options:\n");
-    printf("  --dir <path>       World directory to validate\n");
+    printf("  --dir <path>       World directory to validate\n\n");
+    printf("Upload options:\n");
+    printf("  --package <path>   Path to .therd file to upload\n");
+    printf("  --server <url>     Server URL (default: http://localhost:3000)\n");
 }
 
 int main(int argc, char** argv) {
@@ -621,6 +655,8 @@ int main(int argc, char** argv) {
     const char* command = argv[1];
     const char* dir_path = NULL;
     const char* output_path = NULL;
+    const char* package_path = NULL;
+    const char* server_url = "http://localhost:3000";
 
     /* Parse arguments */
     for (int i = 2; i < argc; i++) {
@@ -628,19 +664,34 @@ int main(int argc, char** argv) {
             dir_path = argv[++i];
         } else if (strcmp(argv[i], "--output") == 0 && i + 1 < argc) {
             output_path = argv[++i];
+        } else if (strcmp(argv[i], "--package") == 0 && i + 1 < argc) {
+            package_path = argv[++i];
+        } else if (strcmp(argv[i], "--server") == 0 && i + 1 < argc) {
+            server_url = argv[++i];
         }
     }
 
-    if (!dir_path) {
-        fprintf(stderr, "Error: --dir is required\n\n");
-        print_usage(argv[0]);
-        return 1;
-    }
-
     /* Dispatch to command */
-    if (strcmp(command, "validate") == 0) {
+    if (strcmp(command, "upload") == 0) {
+        if (!package_path) {
+            fprintf(stderr, "Error: --package is required for upload\n\n");
+            print_usage(argv[0]);
+            return 1;
+        }
+        return do_upload(package_path, server_url);
+    } else if (strcmp(command, "validate") == 0) {
+        if (!dir_path) {
+            fprintf(stderr, "Error: --dir is required\n\n");
+            print_usage(argv[0]);
+            return 1;
+        }
         return do_validate(dir_path);
     } else if (strcmp(command, "create") == 0) {
+        if (!dir_path) {
+            fprintf(stderr, "Error: --dir is required\n\n");
+            print_usage(argv[0]);
+            return 1;
+        }
         return do_create(dir_path, output_path);
     } else {
         fprintf(stderr, "Error: unknown command '%s'\n\n", command);
