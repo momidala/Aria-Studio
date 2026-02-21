@@ -5,108 +5,70 @@ By the end of this guide you will have:
 
 - The GravityAR Blender addon installed and enabled
 - The GravityAR VSCode extension installed with syntax highlighting working
-- The THerD desktop simulator built and running the built-in test scene
+- The THerD desktop simulator running the built-in test scene
 
-Estimated time: 30–45 minutes (most of this is build time).
+Estimated time: 15–20 minutes.
 
 ---
 
 ## Prerequisites
 
-**Supported operating systems**
-
-- Linux: Ubuntu 22.04 or later (recommended)
-- macOS: 13 (Ventura) or later
-- Windows 11: Use WSL2 for the simulator build — all commands below run inside WSL2
-
 **Required software — install before continuing**
 
 | Tool | Version | Where to get it |
 |------|---------|-----------------|
-| Blender | 3.0 or later | https://www.blender.org/download |
+| Blender | 4.2 or later | https://www.blender.org/download |
 | Visual Studio Code | Any recent | https://code.visualstudio.com |
-| Git | Any | Your package manager or https://git-scm.com |
-| CMake | 3.10 or later | Your package manager |
-| C compiler | gcc or clang | Your package manager |
-| GLFW3 dev libraries | Any | Your package manager |
 
-**Install system dependencies**
+**Extract the test kit**
 
-On Ubuntu/Debian Linux:
+Unzip `therd-platform-test-kit.zip` to a folder of your choice, for example your home directory:
 
 ```bash
-sudo apt update
-sudo apt install cmake gcc libglfw3-dev libgl1-mesa-dev
+unzip therd-platform-test-kit.zip -d ~/therd-kit
+cd ~/therd-kit
 ```
 
-On macOS with Homebrew:
-
-```bash
-brew install cmake glfw
-```
-
-On Windows (WSL2): Open your WSL2 terminal and run the Ubuntu/Debian commands above.
+All commands in this guide run from inside the `therd-kit` folder.
 
 ---
 
 ## Step 1: Install the Blender Addon
 
-**1a. Clone the Aria-Studio repository**
-
-```bash
-git clone https://github.com/momidala/Aria-Studio
-```
-
-**1b. Open Blender and install the addon**
+**1a. Open Blender and install the addon**
 
 1. Launch Blender.
 2. Go to **Edit > Preferences > Add-ons**.
 3. Click the **Install** button (top right of the Add-ons panel).
-4. In the file browser that opens, navigate to the `Aria-Studio/blender-addon/` directory.
-5. Select `__init__.py` and click **Install Add-on**.
+4. In the file browser that opens, navigate to the `tools/` folder inside your `therd-kit` directory and select `blender-addon.zip`.
+5. Click **Install Add-on**.
 6. Find "GravityAR Exporter" in the addon list and enable its checkbox.
 
-**1c. Verify the addon is working**
+**1b. Verify the addon is working**
 
 Press **N** in the 3D Viewport to open the sidebar. You should see a **GravityAR** tab.
 
-If the tab does not appear: make sure the addon is enabled (the checkbox is checked in Preferences > Add-ons). If you see an error in the Blender system console, confirm you selected `__init__.py` from the `blender-addon/` directory — not a parent folder.
+If the tab does not appear: make sure the addon is enabled (the checkbox is checked in Preferences > Add-ons). If you see an error in the Blender system console, confirm you selected `blender-addon.zip` and not the unpacked directory.
 
 ---
 
 ## Step 2: Install the VSCode Extension
 
-**2a. Open a terminal in the extension directory**
+**2a. Install the extension**
+
+Open a terminal, navigate to your `therd-kit` folder, and run:
 
 ```bash
-cd Aria-Studio/vscode-extension
-```
-
-**2b. Build and package the extension**
-
-```bash
-npm install && npm run compile && npm run package
-```
-
-Expected output ends with a line like:
-
-```
-Packaged: gravityar-0.1.0.vsix (or similar version)
-```
-
-**2c. Install the extension into VSCode**
-
-```bash
-code --install-extension gravityar-*.vsix
+code --install-extension tools/gravityar-0.1.0.vsix
 ```
 
 Expected output:
 
 ```
-Extension 'gravityar-*.vsix' was successfully installed.
+Extension 'gravityar-0.1.0.vsix' was successfully installed.
 ```
 
-**2d. Verify syntax highlighting**
+**2b. Verify syntax highlighting**
 
 1. Create a new file called `hello.grav` anywhere on disk.
 2. Open it in VSCode.
@@ -116,49 +78,17 @@ If it shows "Plain Text": click the language indicator, type "GravityAR", and se
 
 ---
 
-## Step 3: Build the Desktop Simulator
+## Step 3: Run the Desktop Simulator
 
-**3a. Clone the THerD client repository**
+**3a. Launch the simulator with the built-in test scene**
 
-```bash
-git clone https://github.com/momidala/THerD
-cd THerD
-```
-
-**3b. Configure and build**
+From inside the `therd-kit` folder:
 
 ```bash
-cmake -B build_desktop -DTHERD_PLATFORM_DESKTOP=ON -DCMAKE_BUILD_TYPE=Debug
-cmake --build build_desktop
+./bin/therd-desktop --world data/worlds/test_scene
 ```
 
-The first build downloads FlatBuffers and libwebsockets via CMake FetchContent. This may take 5–15 minutes depending on network speed. Subsequent builds are much faster.
-
-**3c. Verify the build succeeded**
-
-```bash
-ls build_desktop/therd-desktop
-```
-
-Expected output: the path `build_desktop/therd-desktop` (the file exists — no "No such file" error).
-
-If the build failed:
-- "CMake Error: could not find GLFW" — run `sudo apt install libglfw3-dev` (Linux) or `brew install glfw` (macOS) and re-run cmake.
-- Compiler errors in third-party code — make sure you are using gcc or clang, not an older compiler. Check `cmake --version` is 3.10 or later.
-
----
-
-## Step 4: First Launch
-
-**4a. Run the simulator with the built-in test scene**
-
-From inside the `THerD` directory:
-
-```bash
-./build_desktop/therd-desktop --world data/worlds/test_scene
-```
-
-**4b. What you should see**
+**3b. What you should see**
 
 A window opens titled **THerD Desktop Simulator**. The scene shows three cubes on a floor plane. The terminal prints:
 
@@ -169,7 +99,7 @@ Controls: WASD to move, right-click to orbit, scroll to zoom, middle-click to pa
 ===============================
 ```
 
-**4c. Camera controls**
+**3c. Camera controls**
 
 | Key or gesture | Action |
 |----------------|--------|
@@ -186,9 +116,15 @@ Controls: WASD to move, right-click to orbit, scroll to zoom, middle-click to pa
 
 ## Troubleshooting First Launch
 
-**"therd-desktop: command not found"**
+**"Permission denied" when running therd-desktop**
 
-Use the path relative to the THerD directory: `./build_desktop/therd-desktop`. The executable is not on your system PATH.
+Make the binary executable:
+
+```bash
+chmod +x bin/therd-desktop
+```
+
+Then try again.
 
 **"GLFW error: no displays found" or blank screen on headless Linux**
 
@@ -202,20 +138,18 @@ Then re-run the simulator. The desktop simulator requires an OpenGL-capable disp
 
 **"Cannot open world directory" or "Failed to load world"**
 
-Make sure you are running from inside the `THerD` directory (not from `build_desktop`). The path `data/worlds/test_scene` is relative to the THerD repo root. Verify the directory exists:
+Make sure you are running from inside the `therd-kit` folder. The path `data/worlds/test_scene` is relative to where you run the command. Verify the directory exists:
 
 ```bash
 ls data/worlds/test_scene/manifest.json
 ```
-
-If the file is missing, your clone may be incomplete. Try `git status` and `git submodule update --init --recursive` if applicable.
 
 **Build succeeds but simulator immediately exits**
 
 Run with `--help` to confirm the binary works:
 
 ```bash
-./build_desktop/therd-desktop --help
+./bin/therd-desktop --help
 ```
 
 If this prints usage, the binary is fine — double-check your `--world` path.

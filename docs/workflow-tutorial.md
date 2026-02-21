@@ -8,7 +8,9 @@ This tutorial walks through the complete THerD creative workflow: from a blank B
 
 **Prerequisites:** Complete the [Getting Started Guide](getting-started.md) first. All three tools must be installed and the simulator must launch successfully before starting this tutorial.
 
-**Estimated time:** ~45 minutes for the tutorial steps, ~15 minutes for build time (server + packager, first run only).
+**Estimated time:** ~45 minutes.
+
+All commands run from inside your `therd-kit` folder.
 
 ---
 
@@ -155,19 +157,12 @@ If there are syntax errors they will appear in the **Problems** panel (View > Pr
 
 The CLI packager bundles your manifest, script, and any exported models into a single `.therd` file.
 
-**4.1 Build the packager (first time only)**
+**4.1 Create the package**
+
+From inside your `therd-kit` folder:
 
 ```bash
-cd Aria-Studio/packaging
-cmake -B build && cmake --build build
-```
-
-**4.2 Create the package**
-
-From the `Aria-Studio/packaging` directory:
-
-```bash
-./build/therd-package ~/ar-worlds/hello-park/ hello-park.therd
+./bin/therd-package ~/ar-worlds/hello-park/ hello-park.therd
 ```
 
 Expected output:
@@ -188,15 +183,13 @@ You should see `manifest.json` and `scripts/hello-park.grav` listed.
 
 ## Part 5: Start the Server
 
-**5.1 Build and start THerD-Server**
+**5.1 Start THerD-Server**
+
+Open a new terminal, navigate to your `therd-kit` folder, and run:
 
 ```bash
-cd THerD-Server
-cargo build
-cargo run -- --config config/default.toml
+./bin/therd-server
 ```
-
-The first `cargo build` downloads and compiles Rust dependencies. This takes 2–10 minutes on first run.
 
 **5.2 Confirm the server is ready**
 
@@ -232,12 +225,10 @@ If curl reports "Connection refused": make sure the server from Part 5 is still 
 
 ## Part 7: View the World in the Simulator
 
-Open a third terminal (or reuse any terminal that is not running the server).
-
-From inside the THerD directory:
+Open a third terminal, navigate to your `therd-kit` folder, and run:
 
 ```bash
-./build_desktop/therd-desktop \
+./bin/therd-desktop \
   --server-url http://localhost:3000 \
   --gps-lat 37.7749 \
   --gps-lon -122.4194
