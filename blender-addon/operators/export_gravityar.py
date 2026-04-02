@@ -89,15 +89,18 @@ class ExportGravityAR(bpy.types.Operator, ExportHelper):
         # 3. Write .grav file
         self._write_grav_file(self.filepath, gravity_code)
 
-        # 4. Export glTF model alongside (if enabled in preferences)
-        gltf_path = None
+        # 4. Export per-object glTF models into models/ subdirectory
+        exported_models = []
         if prefs is None or prefs.auto_export_gltf:
-            gltf_path = self._get_gltf_path(self.filepath)
-            self._export_gltf(gltf_path)
+            exported_models = self._export_per_object_gltf(
+                context, objects, self.filepath
+            )
 
         # 5. Generate manifest.json
         manifest_path = self._get_manifest_path(self.filepath)
-        self._write_manifest(manifest_path, context.scene, gltf_path, prefs)
+        self._write_manifest(
+            manifest_path, context.scene, exported_models, prefs
+        )
 
         # 6. Report success
         self.report(
@@ -126,39 +129,67 @@ class ExportGravityAR(bpy.types.Operator, ExportHelper):
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(content)
 
-    def _get_gltf_path(self, grav_filepath):
-        """Get glTF file path from .grav file path"""
-        base = os.path.splitext(grav_filepath)[0]
-        return base + ".glb"
+    def _export_per_object_gltf(self, context, objects, grav_filepath):
+        """Export each mesh object as its own GLB into assets/models/ subdirectory.
 
-    def _export_gltf(self, gltf_path):
-        """Export glTF model using Blender's built-in exporter"""
-        try:
-            bpy.ops.export_scene.gltf(
-                filepath=gltf_path,
-                export_format='GLB',
-                use_selection=self.export_selected,
-                export_materials='EXPORT',
-                export_cameras=False,
-                export_lights=False
-            )
-        except Exception as e:
-            # If glTF export fails, log but don't block .grav export
-            print(f"Warning: glTF export failed: {e}")
+        Returns list of script-relative model paths (e.g. ['models/Cube.glb']).
+        Script paths are relative to the assets/ directory — the runtime prepends
+        'assets/' when resolving. Physical files land at assets/models/{name}.glb.
+        """
+        base_dir = os.path.dirname(grav_filepath)
+        models_dir = os.path.join(base_dir, "assets", "models")
+        os.makedirs(models_dir, exist_ok=True)
+
+        exported = []
+
+        # Save current selection
+        orig_selected = [o for o in context.scene.objects if o.select_get()]
+        orig_active = context.view_layer.objects.active
+
+        for obj_data in objects:
+            obj = obj_data['object']
+            sanitized = obj_data['name']
+            glb_path = os.path.join(models_dir, f"{sanitized}.glb")
+
+            try:
+                # Select only this object
+                bpy.ops.object.select_all(action='DESELECT')
+                obj.select_set(True)
+                context.view_layer.objects.active = obj
+
+                bpy.ops.export_scene.gltf(
+                    filepath=glb_path,
+                    export_format='GLB',
+                    use_selection=True,
+                    export_materials='EXPORT',
+                    export_cameras=False,
+                    export_lights=False
+                )
+                exported.append(f"models/{sanitized}.glb")
+            except Exception as e:
+                print(f"Warning: glTF export failed for {obj.name}: {e}")
+
+        # Restore original selection
+        bpy.ops.object.select_all(action='DESELECT')
+        for obj in orig_selected:
+            obj.select_set(True)
+        context.view_layer.objects.active = orig_active
+
+        return exported
 
     def _get_manifest_path(self, grav_filepath):
         """Get manifest.json file path from .grav file path"""
         base_dir = os.path.dirname(grav_filepath)
         return os.path.join(base_dir, "manifest.json")
 
-    def _write_manifest(self, manifest_path, scene, gltf_path, prefs):
+    def _write_manifest(self, manifest_path, scene, exported_models, prefs):
         """
         Write manifest.json for world packaging
 
         Args:
             manifest_path: Path to write manifest.json
             scene: Blender scene
-            gltf_path: Path to glTF model (or None if not exported)
+            exported_models: List of relative model paths
             prefs: GravityARPreferences instance (or None)
         """
         # Base manifest data
@@ -173,9 +204,8 @@ class ExportGravityAR(bpy.types.Operator, ExportHelper):
             "scripts": [os.path.basename(self.filepath)]
         }
 
-        if gltf_path:
-            gltf_filename = os.path.basename(gltf_path)
-            assets["models"] = [f"models/{gltf_filename}"]
+        if exported_models:
+            assets["models"] = exported_models
 
         manifest["assets"] = assets
 

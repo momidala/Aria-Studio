@@ -513,11 +513,11 @@ static int do_create(const char* dir_path, const char* output_path) {
     snprintf(scripts_path, sizeof(scripts_path), "%s/scripts", dir_path);
     struct stat st;
     char compiled_entry[MAX_PATH_LEN] = {0};
+    cJSON* entry_script_item = cJSON_GetObjectItem(manifest_json, "entry_script");
 
     if (stat(scripts_path, &st) == 0 && S_ISDIR(st.st_mode)) {
         printf("Compiling scripts/...\n");
 
-        cJSON* entry_script_item = cJSON_GetObjectItem(manifest_json, "entry_script");
         const char *entry_script_val = entry_script_item ? entry_script_item->valuestring : NULL;
 
         /* Initialize Gravity core (idempotent) */
@@ -536,6 +536,51 @@ static int do_create(const char* dir_path, const char* output_path) {
         }
     }
 
+    /* Compile root-level entry script if not already compiled from scripts/ dir */
+    if (compiled_entry[0] == '\0' && entry_script_item && entry_script_item->valuestring) {
+        const char *entry_val = entry_script_item->valuestring;
+        const char *ext = strrchr(entry_val, '.');
+        if (ext && strcmp(ext, ".grav") == 0) {
+            char entry_full[MAX_PATH_LEN];
+            snprintf(entry_full, sizeof(entry_full), "%s/%s", dir_path, entry_val);
+
+            if (pkg_file_exists(entry_full)) {
+                printf("Compiling root entry script: %s\n", entry_val);
+
+                gravity_core_init();
+                char *bytecode = compile_grav_script(entry_full);
+                if (!bytecode) {
+                    fprintf(stderr, "Compilation failed: %s\n", entry_full);
+                    mz_zip_writer_end(&zip);
+                    cJSON_Delete(manifest_json);
+                    return 1;
+                }
+
+                /* Build .gbc archive path */
+                size_t base_len = (size_t)(ext - entry_val);
+                char gbc_name[MAX_PATH_LEN];
+                strncpy(gbc_name, entry_val, base_len);
+                gbc_name[base_len] = '\0';
+                strncat(gbc_name, ".gbc", sizeof(gbc_name) - strlen(gbc_name) - 1);
+
+                mz_bool ok2 = mz_zip_writer_add_mem(&zip, gbc_name,
+                                                     bytecode, strlen(bytecode),
+                                                     MZ_DEFAULT_COMPRESSION);
+                free(bytecode);
+                if (!ok2) {
+                    fprintf(stderr, "Failed to add compiled entry script to zip\n");
+                    mz_zip_writer_end(&zip);
+                    cJSON_Delete(manifest_json);
+                    return 1;
+                }
+
+                /* Update manifest entry_script */
+                cJSON_DeleteItemFromObject(manifest_json, "entry_script");
+                cJSON_AddStringToObject(manifest_json, "entry_script", gbc_name);
+            }
+        }
+    }
+
     /* Serialize updated manifest and add to zip */
     char *updated_manifest = cJSON_PrintUnformatted(manifest_json);
     cJSON_Delete(manifest_json);
@@ -550,7 +595,8 @@ static int do_create(const char* dir_path, const char* output_path) {
         return 1;
     }
 
-    /* Add assets/ directory */
+    /* Add assets/ directory — includes models/, audio/, textures/, fonts/ subdirs.
+     * Blender addon writes GLBs to assets/models/; all non-script assets land here. */
     char assets_path[MAX_PATH_LEN];
     snprintf(assets_path, sizeof(assets_path), "%s/assets", dir_path);
     if (stat(assets_path, &st) == 0 && S_ISDIR(st.st_mode)) {
