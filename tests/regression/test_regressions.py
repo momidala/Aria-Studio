@@ -100,28 +100,50 @@ class TestFix2PerObjectGlbExport:
         assert "os.makedirs" in source, \
             "Fix #2: os.makedirs must be called to create models/ directory"
 
-    def test_fix2_filesystem_structure(self):
-        """Verify that expected output structure has per-object GLBs in models/."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Simulate the fix's expected output: per-object GLBs in models/
-            models_dir = os.path.join(tmpdir, "assets", "models")
-            os.makedirs(models_dir, exist_ok=True)
+    def test_fix2_export_path_contract(self):
+        """Verify _export_per_object_gltf returns script-relative paths (models/{name}.glb).
 
-            # Create per-object GLB files matching sanitized object names
-            object_names = ["Cube", "Sphere", "Tree"]
-            for name in object_names:
-                glb_path = os.path.join(models_dir, f"{name}.glb")
-                with open(glb_path, "wb") as f:
-                    f.write(b"GLB")  # placeholder content
+        Uses AST analysis to confirm:
+        - Physical files land at assets/models/{name}.glb
+        - Returned paths are script-relative: models/{name}.glb (without assets/ prefix)
+        - The runtime is responsible for prepending assets/ at resolve time (Fix #7 contract)
+        """
+        source = _read_source("operators/export_gravityar.py")
+        tree = ast.parse(source)
 
-            # Verify structure: models/ subdirectory with per-object GLBs
-            assert os.path.isdir(models_dir), \
-                "Fix #2: models/ subdirectory must exist"
+        # Locate _export_per_object_gltf method body
+        export_method = None
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name == "_export_per_object_gltf":
+                export_method = node
+                break
+        assert export_method is not None, \
+            "Fix #2: _export_per_object_gltf method must exist"
 
-            for name in object_names:
-                glb_path = os.path.join(models_dir, f"{name}.glb")
-                assert os.path.isfile(glb_path), \
-                    f"Fix #2: per-object GLB {name}.glb must exist in models/"
+        # Physical directory must be assets/models/ (two-level path join)
+        # Check that "assets" and "models" both appear as components in the method
+        method_src = ast.get_source_segment(source, export_method) or source
+        assert '"assets"' in method_src or "'assets'" in method_src, \
+            "Fix #2: models_dir must be constructed under 'assets/' in _export_per_object_gltf"
+        assert '"models"' in method_src or "'models'" in method_src, \
+            "Fix #2: models_dir must include 'models' path component in _export_per_object_gltf"
+
+        # Returned paths must be script-relative ("models/{name}.glb"), NOT "assets/models/..."
+        # Find all string constants in the method that look like path returns
+        append_nodes = [
+            n for n in ast.walk(export_method)
+            if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "append"
+        ]
+        assert len(append_nodes) > 0, \
+            "Fix #2: _export_per_object_gltf must append() per-object paths to result list"
+
+        # At least one append must reference "models/" (script-relative prefix, no "assets/")
+        assert 'models/' in method_src, \
+            "Fix #2: returned paths must use 'models/' prefix (script-relative, not 'assets/models/')"
+        assert 'assets/models/' not in method_src.split("append")[1] if "append" in method_src else True, \
+            "Fix #2: returned script paths must NOT include 'assets/' — runtime prepends it"
 
 
 # ---------------------------------------------------------------------------
@@ -184,28 +206,6 @@ class TestFix3DirectoryStructure:
             assert "makedirs" in method_source, \
                 "Fix #3: makedirs must be called inside _export_per_object_gltf"
 
-    def test_fix3_filesystem_contract(self):
-        """Verify models/ subdirectory exists at the correct path relative to output."""
-        with tempfile.TemporaryDirectory() as output_dir:
-            # Simulate export: .grav at output_dir/, models/ at output_dir/assets/models/
-            models_dir = os.path.join(output_dir, "assets", "models")
-            os.makedirs(models_dir, exist_ok=True)
-
-            # Create placeholder .grav and manifest
-            grav_path = os.path.join(output_dir, "scene.grav")
-            manifest_path = os.path.join(output_dir, "manifest.json")
-            with open(grav_path, "w") as f:
-                f.write("func main() {}\n")
-            with open(manifest_path, "w") as f:
-                f.write('{"name":"scene","version":"1.0.0","entry_script":"scene.grav"}\n')
-
-            # Verify the expected structure (Fix #3 contract)
-            assert os.path.isdir(models_dir), \
-                "Fix #3: assets/models/ subdirectory must exist"
-            assert os.path.isfile(grav_path), \
-                "Fix #3: .grav script at root level"
-            assert os.path.isfile(manifest_path), \
-                "Fix #3: manifest.json at root level"
 
 
 # ---------------------------------------------------------------------------
