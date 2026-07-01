@@ -67,6 +67,7 @@ def traverse_scene(scene, selected_only=False):
             bpy.ops.object.mode_set(mode='OBJECT')
 
     objects = []
+    used_names = {}  # Track sanitized names to avoid collisions
 
     try:
         # Walk scene collection recursively
@@ -79,14 +80,24 @@ def traverse_scene(scene, selected_only=False):
             if selected_only and not obj.select_get():
                 continue
 
+            # Deduplicate sanitized names (e.g. "Cube.001" and "Cube_001"
+            # both sanitize to "Cube_001")
+            base_name = sanitize_name(obj.name)
+            if base_name in used_names:
+                used_names[base_name] += 1
+                unique_name = f"{base_name}_{used_names[base_name]}"
+            else:
+                used_names[base_name] = 0
+                unique_name = base_name
+
             # Collect object data
             obj_data = {
                 'object': obj,
-                'name': sanitize_name(obj.name),
+                'name': unique_name,
                 'original_name': obj.name,
                 'world_matrix': obj.matrix_world.copy(),  # CRITICAL: copy to avoid invalidation
                 'parent_name': obj.parent.name if obj.parent else None,
-                'model_ref': f"models/{sanitize_name(obj.name)}.glb"
+                'model_ref': f"models/{unique_name}.glb"
             }
 
             objects.append(obj_data)
