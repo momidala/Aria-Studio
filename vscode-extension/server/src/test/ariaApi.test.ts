@@ -185,18 +185,18 @@ test('ARIA_OBJECT_INSTANCE_METHODS has setMaterial', () => {
     ok(found !== undefined, 'ARIA_OBJECT_INSTANCE_METHODS missing setMaterial');
 });
 
-test('ARIA_OBJECT_INSTANCE_METHODS has exactly 30 methods', () => {
-    strictEqual(ARIA_OBJECT_INSTANCE_METHODS.length, 30,
-        'Expected 30 AriaObject instance methods: 6 transform + 2 anchor + 2 network + 8 physics + 6 animation + 4 text + 1 setMaterial + 1 destroy');
+test('ARIA_OBJECT_INSTANCE_METHODS has exactly 34 methods', () => {
+    strictEqual(ARIA_OBJECT_INSTANCE_METHODS.length, 34,
+        'Expected 34 AriaObject instance methods: 6 transform + 2 anchor + 2 network + 4 state + 8 physics + 6 animation + 4 text + 1 setMaterial + 1 destroy');
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Phase 27 — occluder method-set isolation tests
 // ─────────────────────────────────────────────────────────────────────────────
 
-test('OCCLUDER_INSTANCE_METHODS has exactly 11 methods', () => {
-    strictEqual(OCCLUDER_INSTANCE_METHODS.length, 11,
-        'Expected 11 occluder instance methods: 6 transform + 2 anchor + 2 network + 1 destroy');
+test('OCCLUDER_INSTANCE_METHODS has exactly 15 methods', () => {
+    strictEqual(OCCLUDER_INSTANCE_METHODS.length, 15,
+        'Expected 15 occluder instance methods: 6 transform + 2 anchor + 2 network + 4 state + 1 destroy');
 });
 
 test('OCCLUDER_INSTANCE_METHODS has all transform and lifecycle methods', () => {
@@ -232,36 +232,48 @@ test('OCCLUDER_INSTANCE_METHODS does NOT contain blocked text or material method
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Phase 27 — REQUIRED-only methods must NOT appear anywhere
+// Phase 27.5 — state system methods MUST appear in AriaObject and OccluderObject
+// (IMPLEMENTED Phase 27.5, 2026-07-02 — formerly excluded; flipped here)
 // ─────────────────────────────────────────────────────────────────────────────
 
-test('No REQUIRED-only methods appear in any completion table', () => {
-    // These are REQUIRED but NOT IMPLEMENTED per SPEC-GRAVITYAR-API §3.3
-    const requiredNotImplemented = ['addState', 'setState', 'getState', 'onStateChange'];
+test('ARIA_OBJECT_INSTANCE_METHODS has all four state system methods', () => {
+    const required = ['addState', 'setState', 'getState', 'onStateChange'];
+    for (const name of required) {
+        const found = ARIA_OBJECT_INSTANCE_METHODS.find(m => m.label === name);
+        ok(found !== undefined,
+            `ARIA_OBJECT_INSTANCE_METHODS missing state method '${name}' — IMPLEMENTED Phase 27.5`);
+    }
+});
 
-    const allTables = [
+test('OCCLUDER_INSTANCE_METHODS has all four state system methods', () => {
+    const required = ['addState', 'setState', 'getState', 'onStateChange'];
+    for (const name of required) {
+        const found = OCCLUDER_INSTANCE_METHODS.find(m => m.label === name);
+        ok(found !== undefined,
+            `OCCLUDER_INSTANCE_METHODS missing state method '${name}' — IMPLEMENTED Phase 27.5`);
+    }
+});
+
+test('state methods must NOT appear in unrelated tables (no surface bleed)', () => {
+    // These belong only to AriaObject and OccluderObject — not to static modules
+    const stateMethods = ['addState', 'setState', 'getState', 'onStateChange'];
+    const unrelatedTables = [
         { name: 'ARIA_STATIC_METHODS', table: ARIA_STATIC_METHODS },
         { name: 'GPS_STATIC_METHODS', table: GPS_STATIC_METHODS },
         { name: 'INPUT_STATIC_METHODS', table: INPUT_STATIC_METHODS },
         { name: 'AUDIO_STATIC_METHODS', table: AUDIO_STATIC_METHODS },
         { name: 'MATERIAL_STATIC_METHODS', table: MATERIAL_STATIC_METHODS },
         { name: 'LIGHT_STATIC_METHODS', table: LIGHT_STATIC_METHODS },
-        { name: 'ARIA_OBJECT_INSTANCE_METHODS', table: ARIA_OBJECT_INSTANCE_METHODS },
-        { name: 'OCCLUDER_INSTANCE_METHODS', table: OCCLUDER_INSTANCE_METHODS },
         { name: 'AUDIO_SOURCE_INSTANCE_METHODS', table: AUDIO_SOURCE_INSTANCE_METHODS },
         { name: 'MATERIAL_INSTANCE_METHODS', table: MATERIAL_INSTANCE_METHODS },
         { name: 'LIGHT_INSTANCE_METHODS', table: LIGHT_INSTANCE_METHODS },
         { name: 'GPS_ANCHOR_INSTANCE_METHODS', table: GPS_ANCHOR_INSTANCE_METHODS },
     ];
-
-    for (const { name, table } of allTables) {
-        for (const label of requiredNotImplemented) {
+    for (const { name, table } of unrelatedTables) {
+        for (const label of stateMethods) {
             const found = table.find(m => m.label === label);
-            strictEqual(
-                found,
-                undefined,
-                `REQUIRED-only method '${label}' must NOT appear in ${name} — artists would get completions that fail at runtime`
-            );
+            strictEqual(found, undefined,
+                `state method '${label}' must NOT appear in ${name}`);
         }
     }
 });
@@ -372,6 +384,18 @@ test('buildCompletions works for every instance method table', () => {
         const items = buildCompletions(table);
         ok(items.length > 0, 'each instance table must produce at least one completion');
     }
+});
+
+test('hover lookup for state method (addState) works', () => {
+    const doc = lookupHoverDoc(ALL_API_METHODS, 'addState');
+    notStrictEqual(doc, null, 'addState must have hover doc in ALL_API_METHODS');
+    ok(doc !== null && doc.includes('addState'));
+});
+
+test('hover lookup for state method (onStateChange) works', () => {
+    const doc = lookupHoverDoc(ALL_API_METHODS, 'onStateChange');
+    notStrictEqual(doc, null, 'onStateChange must have hover doc in ALL_API_METHODS');
+    ok(doc !== null && doc.includes('onStateChange'));
 });
 
 test('ALL_API_METHODS contains createOccluder', () => {

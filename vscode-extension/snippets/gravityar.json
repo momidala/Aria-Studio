@@ -44,6 +44,27 @@
     ]
   },
 
+  "Object State System": {
+    "prefix": "aria-states",
+    "description": "Object mesh-swap state system — addState ×2 + onStateChange + setState skeleton (Phase 27.5)",
+    "body": [
+      "// Register named states (each preloads a GLB mesh into GPU memory)",
+      "${1:obj}.addState(\"${2:state1}\", \"models/${3:model_state1.glb}\");",
+      "${1:obj}.addState(\"${4:state2}\", \"models/${5:model_state2.glb}\");",
+      "",
+      "// Register state change callback — fires after each setState() call",
+      "${1:obj}.onStateChange(func(old, new_state) {",
+      "\tSystem.print(\"${1:obj} changed from \" + old + \" to \" + new_state);",
+      "\t${6:// Handle transition}",
+      "});",
+      "",
+      "// Swap the active mesh (instantaneous, transform preserved)",
+      "// Initial state is always named \"default\" — the mesh from createObject.",
+      "// ${1:obj}.setState(\"${2:state1}\");  // call from a callback or onUpdate",
+      "$0"
+    ]
+  },
+
   "Network State Pair": {
     "prefix": "aria-state",
     "description": "setNetworkState / getNetworkState pair for multiuser shared object state (Phase 23)",
@@ -125,7 +146,7 @@
       "\t// Optional: adjust local offset from anchor",
       "\t// ${1:occluder}.setPosition(0.0, 0.0, 0.0);",
       "}",
-      "// Note: available methods are transform + anchor + network-state + destroy ONLY.",
+      "// Note: available methods are transform + anchor + network-state + object-state + destroy.",
       "// Animation, physics, and appearance methods are blocked on occluder handles.",
       "$0"
     ]

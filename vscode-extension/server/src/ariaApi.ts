@@ -4,11 +4,9 @@
 // Phase 27 expansion: covers every IMPLEMENTED module and instance-method set
 // from SPEC-GRAVITYAR-API.md §9 (status tags refreshed 2026-07-02).
 //
-// SKIPPED — REQUIRED but NOT IMPLEMENTED (must NOT appear as completions):
-//   object.addState(name, modelPath)
-//   object.setState(name)
-//   object.getState()
-//   object.onStateChange(handler)
+// Phase 27.5 addition: object state system (addState, setState, getState, onStateChange)
+// added to ARIA_OBJECT_INSTANCE_METHODS and OCCLUDER_INSTANCE_METHODS now that the
+// client implements them (THerD 68252fd, IMPLEMENTED 2026-07-02).
 //
 // To add new API methods: append entries to the appropriate constant.
 // Both completion.ts and hover.ts update automatically — no other file changes needed.
@@ -88,7 +86,7 @@ export const ARIA_STATIC_METHODS: readonly AriaMethodDef[] = [
             '**Parameters:**\n' +
             '- `name` — unique identifier\n' +
             '- `modelPath` — path to .glb model relative to `assets/`\n\n' +
-            '**Returns:** Object handle with **transform, anchor, network-state, and destroy only**.' +
+            '**Returns:** Object handle with **transform, anchor, network-state, object-state, and destroy only**.' +
             ' Appearance, animation, and physics methods are NOT available on occluder handles' +
             ' — calling them raises a plain-language VM error.\n\n' +
             '**Render order:** Occlusion pre-pass runs before the main color pass.' +
@@ -488,11 +486,8 @@ export const LIGHT_STATIC_METHODS: readonly AriaMethodDef[] = [
 // ─────────────────────────────────────────────────────────────────────────────
 // AriaObject instance methods — full set
 // Returned by Aria.createObject() and Aria.createText()
-// 30 methods across transform, anchor, network-state, physics, animation,
-//   text, material, and lifecycle
-//
-// NOT included (REQUIRED, not IMPLEMENTED):
-//   addState, setState, getState, onStateChange
+// 34 methods across transform, anchor, network-state, object-state, physics,
+//   animation, text, material, and lifecycle
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const ARIA_OBJECT_INSTANCE_METHODS: readonly AriaMethodDef[] = [
@@ -584,8 +579,8 @@ export const ARIA_OBJECT_INSTANCE_METHODS: readonly AriaMethodDef[] = [
             '**Behavior:** In single-user or offline mode, updates local state only.' +
             ' In multiuser mode, sends an `ObjectStateChange` FlatBuffers message that' +
             ' the server broadcasts to all other clients.\n\n' +
-            '**Note:** Distinct from `addState`/`setState` (mesh-swap state, REQUIRED but not yet' +
-            ' implemented). This is network key-value state.\n\n' +
+            '**Note:** Distinct from `addState`/`setState` (mesh-swap state — see §3.3).' +
+            ' This is network key-value state.\n\n' +
             '**Example:**\n```gravity\n' +
             'box.setNetworkState("grabbed", "player_1");\n```',
         insertText: 'setNetworkState("${1:key}", ${2:value})',
@@ -600,6 +595,62 @@ export const ARIA_OBJECT_INSTANCE_METHODS: readonly AriaMethodDef[] = [
             '**Example:**\n```gravity\n' +
             'var who = box.getNetworkState("grabbed");\n```',
         insertText: 'getNetworkState("${1:key}")',
+    },
+    // ── Object State (mesh-swap) ─────────────────────────────────────────────
+    {
+        label: 'addState',
+        signature: 'object.addState(name: string, modelPath: string) → null',
+        description:
+            'Register a named state with a GLB model. Preloads GPU resources but does not activate it.\n\n' +
+            '**Parameters:**\n' +
+            '- `name` — state identifier. Re-registering an existing name replaces its mesh' +
+            ' (last-write-wins; the swap applies immediately if that state is currently active).\n' +
+            '- `modelPath` — path to .glb file relative to `assets/`' +
+            ' (same resolution as `createObject`)\n\n' +
+            '**Limit:** Maximum 8 states per object. *(Spec clarification 2026-07-02.)*\n\n' +
+            '**On error:** If the model fails to load, logs an error. The state is registered' +
+            ' but switching to it will show nothing.\n\n' +
+            '**Example:**\n```gravity\n' +
+            'vase.addState("cracked", "models/vase_cracked.glb");\n' +
+            'vase.addState("shattered", "models/vase_shattered.glb");\n```',
+        insertText: 'addState("${1:stateName}", "${2:models/state.glb}")',
+    },
+    {
+        label: 'setState',
+        signature: 'object.setState(name: string) → null',
+        description:
+            'Swap the active mesh to the named state. Instantaneous — no crossfade.\n\n' +
+            '**Behavior:** Position, rotation, and scale are preserved across the swap.' +
+            ' If `name` is not a registered state, logs an error and does not change state.\n\n' +
+            '**Triggers:** `onStateChange` callback fires after the swap completes.\n\n' +
+            '**Initial state:** The mesh from `createObject` is the `"default"` state.\n\n' +
+            '**Example:**\n```gravity\n' +
+            'vase.setState("cracked"); // instantaneous mesh swap\n```',
+        insertText: 'setState("${1:stateName}")',
+    },
+    {
+        label: 'getState',
+        signature: 'object.getState() → string',
+        description:
+            'Return the name of the currently active state.\n\n' +
+            '**Returns:** State name string. The initial state (from `createObject`) is named `"default"`.\n\n' +
+            '**Example:**\n```gravity\n' +
+            'var current = vase.getState(); // e.g. "default" or "cracked"\n```',
+        insertText: 'getState()',
+    },
+    {
+        label: 'onStateChange',
+        signature: 'object.onStateChange(handler: function) → null',
+        description:
+            'Register a callback invoked when `setState()` is called.\n\n' +
+            '**Handler signature:** `func(oldState, newState) { ... }` — receives the previous' +
+            ' state name and the new state name as strings.\n\n' +
+            '**Note:** Last registration wins — only one handler active at a time.\n\n' +
+            '**Example:**\n```gravity\n' +
+            'vase.onStateChange(func(old, new_state) {\n' +
+            '    System.print("Changed from " + old + " to " + new_state);\n' +
+            '});\n```',
+        insertText: 'onStateChange(func(oldState, newState) {\n\t${1:// handle state transition}\n})',
     },
     // ── Physics ───────────────────────────────────────────────────────────────
     {
@@ -809,7 +860,7 @@ export const ARIA_OBJECT_INSTANCE_METHODS: readonly AriaMethodDef[] = [
 // ─────────────────────────────────────────────────────────────────────────────
 // Occluder instance methods — restricted subset
 // Returned by Aria.createOccluder()
-// 11 methods: transform + anchor + network-state + destroy ONLY
+// 15 methods: transform + anchor + network-state + object-state + destroy
 //
 // Blocked on occluder handles (raise VM error if called):
 //   appearance methods, animation, physics, text methods, setMaterial
@@ -878,6 +929,37 @@ export const OCCLUDER_INSTANCE_METHODS: readonly AriaMethodDef[] = [
         signature: 'occluder.getNetworkState(key: string) → any',
         description: 'Get the current value for a network state key.',
         insertText: 'getNetworkState("${1:key}")',
+    },
+    // ── Object State (mesh-swap) ─────────────────────────────────────────────
+    {
+        label: 'addState',
+        signature: 'occluder.addState(name: string, modelPath: string) → null',
+        description:
+            'Register a named depth-only state mesh. Preloads GPU resources; max 8 states.' +
+            ' Re-registering an existing name replaces the mesh (last-write-wins).',
+        insertText: 'addState("${1:stateName}", "${2:models/state.glb}")',
+    },
+    {
+        label: 'setState',
+        signature: 'occluder.setState(name: string) → null',
+        description:
+            'Swap the active depth-only mesh. Instantaneous — transform preserved.' +
+            ' Triggers `onStateChange` after swap.',
+        insertText: 'setState("${1:stateName}")',
+    },
+    {
+        label: 'getState',
+        signature: 'occluder.getState() → string',
+        description: 'Return the name of the currently active state. Initial state is `"default"`.',
+        insertText: 'getState()',
+    },
+    {
+        label: 'onStateChange',
+        signature: 'occluder.onStateChange(handler: function) → null',
+        description:
+            'Register a callback fired when `setState()` is called.' +
+            ' Handler receives `(oldState: string, newState: string)`. Last registration wins.',
+        insertText: 'onStateChange(func(oldState, newState) {\n\t${1:// handle state transition}\n})',
     },
     // ── Lifecycle ─────────────────────────────────────────────────────────────
     {
