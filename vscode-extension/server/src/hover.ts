@@ -1,5 +1,6 @@
 import { Hover, HoverParams, MarkupKind } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import { lookupAriaMethodHoverDoc } from './ariaApi';
 
 export function getHoverInfo(params: HoverParams, document: TextDocument): Hover | null {
     const position = params.position;
@@ -49,17 +50,22 @@ function getWordAtPosition(text: string, offset: number): string | null {
 }
 
 function getDocumentation(word: string): string | null {
+    // Aria static methods — sourced from the shared API table (ariaApi.ts).
+    // Phase 27 adds entries there; hover is updated automatically.
+    const ariaDoc = lookupAriaMethodHoverDoc(word);
+    if (ariaDoc !== null) return ariaDoc;
+
+    // All other documented symbols
     const docs: { [key: string]: string } = {
         // Classes
-        'Aria': '**Aria** - AR Object Creation Module\n\nCreate and manipulate 3D objects in the AR world.\n\n**Methods:**\n- `createObject(name, model)` - Create new 3D object',
+        'Aria': '**Aria** - AR Object Creation Module\n\nCreate and manipulate 3D objects in the AR world.\n\n**Methods:**\n- `createObject(name, modelPath)` - Create new 3D object',
         'GPS': '**GPS** - Positioning and Anchoring Module\n\nGPS-based positioning for outdoor AR worlds.\n\n**Methods:**\n- `createAnchor(lat, lon, alt)` - Create GPS anchor\n- `distance(lat1, lon1, lat2, lon2)` - Calculate distance\n- `bearing(lat1, lon1, lat2, lon2)` - Calculate bearing\n- `getPlayerPosition()` - Get user GPS location',
         'Input': '**Input** - Touch and Gesture Module\n\nRespond to user touch gestures.\n\n**Methods:**\n- `onTap(callback)` - Register tap handler\n- `onDoubleTap(callback)` - Register double-tap handler\n- `onSwipe(callback)` - Register swipe handler\n- `onPinch(callback)` - Register pinch handler\n- `onPan(callback)` - Register pan/drag handler',
         'Audio': '**Audio** - Spatial and Stereo Audio Module\n\nPlay 3D spatial audio and stereo sounds.\n\n**Methods:**\n- `play3D(file, x, y, z)` - Play spatial audio at position\n- `play(file)` - Play stereo audio\n- `setMasterVolume(volume)` - Set master volume\n- `getMasterVolume()` - Get master volume',
         'System': '**System** - System Utilities Module\n\nSystem-level functions.\n\n**Methods:**\n- `print(message)` - Print to console',
         'Math': '**Math** - Mathematical Functions Module\n\nStandard math functions.\n\n**Methods:**\n- `sqrt(x)` - Square root\n- `sin(x)` - Sine (radians)\n- `cos(x)` - Cosine (radians)',
 
-        // Aria methods
-        'createObject': '**Aria.createObject**(name: String, model: String) -> AriaObject\n\nCreate a new 3D object in the AR world.\n\n**Parameters:**\n- `name` - Display name for the object\n- `model` - Path to glTF model file (relative to models/)\n\n**Returns:** AriaObject instance with transform methods\n\n**Example:**\n```gravity\nvar tree = Aria.createObject("oak", "models/tree.glb");\ntree.setPosition(5.0, 0.0, -3.0);\n```',
+        // AriaObject instance methods
         'setPosition': '**setPosition**(x: Float, y: Float, z: Float)\n\nSet object position in meters.\n\n**Y-up coordinate system:** X=right, Y=up, Z=back\n\n**Example:**\n```gravity\nobj.setPosition(5.0, 1.5, -3.0); // 5m right, 1.5m up, 3m forward\n```',
         'setRotation': '**setRotation**(x: Float, y: Float, z: Float, w: Float)\n\nSet object rotation as quaternion.\n\n**Quaternion format:** x, y, z, w components\n**Identity (no rotation):** 0, 0, 0, 1\n\n**Example:**\n```gravity\nobj.setRotation(0.0, 0.707, 0.0, 0.707); // 90 degrees around Y\n```',
         'setScale': '**setScale**(x: Float, y: Float, z: Float)\n\nSet object scale.\n\n**1.0 = original size**\n\n**Example:**\n```gravity\nobj.setScale(2.0, 2.0, 2.0); // Twice as large\n```',
@@ -110,5 +116,5 @@ function getDocumentation(word: string): string | null {
         'return': '**return** - Return Statement\n\nReturn a value from a function.\n\n**Syntax:**\n```gravity\nreturn value;\n```',
     };
 
-    return docs[word] || null;
+    return docs[word] ?? null;
 }

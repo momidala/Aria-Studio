@@ -35,6 +35,12 @@ const defaultSettings: GravityARSettings = {
 
 let globalSettings: GravityARSettings = defaultSettings;
 
+// Per-document debounce: prevents spawning the Gravity compiler on every keystroke.
+// Each document has its own pending timeout so fast typists don't queue redundant
+// compiler invocations while still getting diagnostics 300 ms after they stop.
+const DEBOUNCE_MS = 300;
+const validationTimeouts = new Map<string, NodeJS.Timeout>();
+
 // Initialize handler
 connection.onInitialize((params: InitializeParams) => {
     const result: InitializeResult = {
@@ -55,14 +61,23 @@ connection.onInitialized(() => {
 
 // Configuration change handler
 connection.onDidChangeConfiguration(change => {
-    globalSettings = change.settings.gravityar || defaultSettings;
-    // Revalidate all open documents
+    globalSettings = (change.settings as { gravityar?: GravityARSettings }).gravityar ?? defaultSettings;
+    // Revalidate all open documents (immediately — config changes are intentional)
     documents.all().forEach(validateTextDocument);
 });
 
-// Document change handler
+// Document change handler — debounced to avoid spawning the compiler per keystroke
 documents.onDidChangeContent(change => {
-    validateTextDocument(change.document);
+    const uri = change.document.uri;
+    const pending = validationTimeouts.get(uri);
+    if (pending !== undefined) clearTimeout(pending);
+    validationTimeouts.set(
+        uri,
+        setTimeout(() => {
+            validationTimeouts.delete(uri);
+            validateTextDocument(change.document);
+        }, DEBOUNCE_MS)
+    );
 });
 
 async function validateTextDocument(textDocument: TextDocument): Promise<void> {

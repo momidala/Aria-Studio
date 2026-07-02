@@ -1,5 +1,6 @@
 import { CompletionItem, CompletionItemKind, InsertTextFormat, CompletionParams, MarkupKind } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
+import { buildAriaStaticCompletions } from './ariaApi';
 
 export function getCompletions(params: CompletionParams, document: TextDocument): CompletionItem[] {
     const position = params.position;
@@ -33,14 +34,24 @@ export function getCompletions(params: CompletionParams, document: TextDocument)
     }
 }
 
-function detectAriaInstanceMethod(lineText: string, fullText: string, offset: number): boolean {
-    // Simple heuristic: look for pattern like "var x = Aria.createObject" earlier in file
-    // Then detect "x." pattern
+/**
+ * Detect whether the variable being dotted into was assigned from any Aria.create* factory.
+ *
+ * Uses a wildcard pattern (Aria\.create\w+) so that Aria.createText, Aria.createOccluder,
+ * and future Phase-27+ factory methods all activate instance-method completions without
+ * requiring a code change here.  (Phase 27 adds new entries only to ariaApi.ts.)
+ *
+ * Exported for unit testing.
+ */
+export function detectAriaInstanceMethod(lineText: string, fullText: string, offset: number): boolean {
+    // Simple heuristic: look for pattern like "var x = Aria.create*" earlier in file
+    // Then detect "x." pattern on the current line
     const varMatch = lineText.match(/(\w+)\.$/);
     if (!varMatch) return false;
 
     const varName = varMatch[1];
-    const pattern = new RegExp(`var\\s+${varName}\\s*=\\s*Aria\\.createObject`, 'i');
+    // Wildcard: matches createObject, createText, createOccluder, and any future Aria.create* method
+    const pattern = new RegExp(`var\\s+${varName}\\s*=\\s*Aria\\.create\\w+`, 'i');
     return pattern.test(fullText.substring(0, offset));
 }
 
@@ -49,24 +60,14 @@ function detectAudioSourceInstanceMethod(lineText: string, fullText: string, off
     if (!varMatch) return false;
 
     const varName = varMatch[1];
+    // Audio.play and Audio.play3D are the only AudioSource-returning methods per spec
     const pattern = new RegExp(`var\\s+${varName}\\s*=\\s*Audio\\.(play3D|play)`, 'i');
     return pattern.test(fullText.substring(0, offset));
 }
 
+// Delegates to the shared API table in ariaApi.ts — Phase 27 adds entries there only.
 function getAriaStaticMethods(): CompletionItem[] {
-    return [
-        {
-            label: 'createObject',
-            kind: CompletionItemKind.Method,
-            detail: 'Aria.createObject(name: String, model: String) -> AriaObject',
-            documentation: {
-                kind: MarkupKind.Markdown,
-                value: 'Create a new 3D object in the AR world.\n\n**Parameters:**\n- `name` - Display name for the object\n- `model` - Path to glTF model file (relative to models/)\n\n**Returns:** AriaObject instance with transform methods\n\n**Example:**\n```gravity\nvar tree = Aria.createObject("oak", "models/tree.glb");\ntree.setPosition(5.0, 0.0, -3.0);\n```',
-            },
-            insertText: 'createObject("${1:name}", "${2:models/model.glb}")',
-            insertTextFormat: InsertTextFormat.Snippet,
-        },
-    ];
+    return buildAriaStaticCompletions();
 }
 
 function getAriaInstanceMethods(): CompletionItem[] {

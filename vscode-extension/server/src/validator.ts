@@ -12,10 +12,6 @@ const execFileAsync = promisify(execFile);
 const ARIA_PRECODE = 'extern var Aria;\nextern var Material;\nextern var Light;\n';
 const PRECODE_LINE_COUNT = 3;
 
-// Debounce timeout
-let validationTimeout: NodeJS.Timeout | null = null;
-const DEBOUNCE_MS = 300;
-
 // Error message enhancements for artist-friendly output
 const errorEnhancements: { pattern: RegExp; friendly: string }[] = [
     { pattern: /unexpected token/i, friendly: 'Unexpected code found. Check for missing semicolons or brackets.' },
@@ -60,7 +56,7 @@ async function findCompiler(configuredPath: string): Promise<string | null> {
     const commonPaths = [
         '/usr/local/bin/gravity',
         '/usr/bin/gravity',
-        join(process.env.HOME || '', '.local', 'bin', 'gravity'),
+        join(process.env.HOME ?? '', '.local', 'bin', 'gravity'),
     ];
 
     for (const path of commonPaths) {
@@ -101,8 +97,10 @@ export async function validateDocument(
         return [diagnostic];
     }
 
-    // Create temporary file with document content
-    const tempFile = join(tmpdir(), `gravityar-${Date.now()}.grav`);
+    // Create a collision-safe temporary file name: timestamp + random suffix prevents
+    // concurrent validations of different documents from clobbering each other.
+    const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    const tempFile = join(tmpdir(), `gravityar-${uid}.grav`);
     try {
         await writeFile(tempFile, ARIA_PRECODE + document.getText(), 'utf8');
 
@@ -111,9 +109,10 @@ export async function validateDocument(
             await execFileAsync(compiler, [tempFile]);
             // Compilation successful - no errors
             return [];
-        } catch (error: any) {
+        } catch (error: unknown) {
             // Parse compiler output for errors
-            const output = (error.stderr || error.stdout || '').toString();
+            const err = error as { stderr?: string; stdout?: string };
+            const output = (err.stderr ?? err.stdout ?? '').toString();
             return parseCompilerOutput(output, document);
         }
     } finally {
