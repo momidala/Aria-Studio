@@ -48,3 +48,6 @@ Thumbs.db
 
 # Platform-level planning (managed in THerD-platform)
 .planning/
+
+# TypeScript incremental build state
+*.tsbuildinfo
