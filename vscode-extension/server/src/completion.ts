@@ -74,8 +74,25 @@ export function getCompletions(params: CompletionParams, document: TextDocument)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Instance-method detectors
-// All exported so they can be unit-tested from detector.test.ts.
+// One parameterized core; thin named exports per factory so detector.test.ts
+// and the getCompletions() dispatch keep their existing call sites.
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Detect whether the variable being dotted into (`foo.` at the cursor) was
+ * assigned from a factory matching factoryPattern (a regex source fragment,
+ * e.g. 'Aria\\.create\\w+' or 'Audio\\.(play3D|play)').
+ *
+ * Looks backward from the cursor for `var <name> = <factory>`.
+ */
+function detectInstanceMethod(factoryPattern: string, lineText: string, fullText: string, offset: number): boolean {
+    const varMatch = lineText.match(/(\w+)\.$/);
+    if (!varMatch) return false;
+
+    const varName = varMatch[1];
+    const pattern = new RegExp(`var\\s+${varName}\\s*=\\s*${factoryPattern}`, 'i');
+    return pattern.test(fullText.substring(0, offset));
+}
 
 /**
  * Detect whether the variable being dotted into was assigned from any Aria.create* factory.
@@ -87,13 +104,8 @@ export function getCompletions(params: CompletionParams, document: TextDocument)
  * Exported for unit testing.
  */
 export function detectAriaInstanceMethod(lineText: string, fullText: string, offset: number): boolean {
-    const varMatch = lineText.match(/(\w+)\.$/);
-    if (!varMatch) return false;
-
-    const varName = varMatch[1];
     // Wildcard: matches createObject, createText, createOccluder, and any future Aria.create* method
-    const pattern = new RegExp(`var\\s+${varName}\\s*=\\s*Aria\\.create\\w+`, 'i');
-    return pattern.test(fullText.substring(0, offset));
+    return detectInstanceMethod('Aria\\.create\\w+', lineText, fullText, offset);
 }
 
 /**
@@ -106,12 +118,7 @@ export function detectAriaInstanceMethod(lineText: string, fullText: string, off
  * Exported for unit testing.
  */
 export function detectOccluderInstanceMethod(lineText: string, fullText: string, offset: number): boolean {
-    const varMatch = lineText.match(/(\w+)\.$/);
-    if (!varMatch) return false;
-
-    const varName = varMatch[1];
-    const pattern = new RegExp(`var\\s+${varName}\\s*=\\s*Aria\\.createOccluder`, 'i');
-    return pattern.test(fullText.substring(0, offset));
+    return detectInstanceMethod('Aria\\.createOccluder', lineText, fullText, offset);
 }
 
 /**
@@ -122,12 +129,7 @@ export function detectOccluderInstanceMethod(lineText: string, fullText: string,
  * Exported for unit testing.
  */
 export function detectAudioSourceInstanceMethod(lineText: string, fullText: string, offset: number): boolean {
-    const varMatch = lineText.match(/(\w+)\.$/);
-    if (!varMatch) return false;
-
-    const varName = varMatch[1];
-    const pattern = new RegExp(`var\\s+${varName}\\s*=\\s*Audio\\.(play3D|play)`, 'i');
-    return pattern.test(fullText.substring(0, offset));
+    return detectInstanceMethod('Audio\\.(play3D|play)', lineText, fullText, offset);
 }
 
 /**
@@ -135,12 +137,7 @@ export function detectAudioSourceInstanceMethod(lineText: string, fullText: stri
  * Exported for unit testing.
  */
 export function detectMaterialInstanceMethod(lineText: string, fullText: string, offset: number): boolean {
-    const varMatch = lineText.match(/(\w+)\.$/);
-    if (!varMatch) return false;
-
-    const varName = varMatch[1];
-    const pattern = new RegExp(`var\\s+${varName}\\s*=\\s*Material\\.create`, 'i');
-    return pattern.test(fullText.substring(0, offset));
+    return detectInstanceMethod('Material\\.create', lineText, fullText, offset);
 }
 
 /**
@@ -148,12 +145,7 @@ export function detectMaterialInstanceMethod(lineText: string, fullText: string,
  * Exported for unit testing.
  */
 export function detectLightInstanceMethod(lineText: string, fullText: string, offset: number): boolean {
-    const varMatch = lineText.match(/(\w+)\.$/);
-    if (!varMatch) return false;
-
-    const varName = varMatch[1];
-    const pattern = new RegExp(`var\\s+${varName}\\s*=\\s*Light\\.create\\w+`, 'i');
-    return pattern.test(fullText.substring(0, offset));
+    return detectInstanceMethod('Light\\.create\\w+', lineText, fullText, offset);
 }
 
 /**
@@ -161,12 +153,7 @@ export function detectLightInstanceMethod(lineText: string, fullText: string, of
  * Exported for unit testing.
  */
 export function detectGPSAnchorInstanceMethod(lineText: string, fullText: string, offset: number): boolean {
-    const varMatch = lineText.match(/(\w+)\.$/);
-    if (!varMatch) return false;
-
-    const varName = varMatch[1];
-    const pattern = new RegExp(`var\\s+${varName}\\s*=\\s*GPS\\.createAnchor`, 'i');
-    return pattern.test(fullText.substring(0, offset));
+    return detectInstanceMethod('GPS\\.createAnchor', lineText, fullText, offset);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
