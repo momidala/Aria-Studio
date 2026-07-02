@@ -1,0 +1,10 @@
+{
+  "name": "gravityar-server",
+  "version": "0.1.0",
+  "description": "GravityAR LSP server",
+  "private": true,
+  "scripts": {
+    "compile": "tsc -p tsconfig.json",
+    "test": "tsc -p tsconfig.test.json && node --test out/test/detector.test.js out/test/ariaApi.test.js"
+  }
+}
