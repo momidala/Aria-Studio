@@ -13,6 +13,9 @@
 #include <dirent.h>
 #include <errno.h>
 #include "cJSON.h"
+/* miniz (v11.0.2) is VENDORED here (packaging/miniz.[ch]) and is byte-identical
+ * to THerD/third_party/miniz.[ch]. The two copies MUST be updated in sync —
+ * security patches to miniz apply to both. */
 #include "miniz.h"
 
 #include "gravity_compiler.h"

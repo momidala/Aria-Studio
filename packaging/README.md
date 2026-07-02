@@ -42,3 +42,11 @@ my-world/
 ```
 
 See docs/package-format.md for manifest.json schema.
+
+## Vendored Dependencies
+
+- `miniz.c` / `miniz.h` — miniz **v11.0.2** (ZIP archive I/O). This is a
+  vendored copy, byte-identical to `THerD/third_party/miniz.[ch]` in the
+  client repo. **The two copies MUST be updated in sync** — a security
+  patch to miniz applies to both locations.
+- `cjson/` — bundled cJSON (manifest parsing).
