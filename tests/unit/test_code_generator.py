@@ -10,8 +10,8 @@ import sys
 import os
 import re
 
-# Add parent directory to path to import from core
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+# Add blender-addon/ to sys.path so tests can import from core/
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'blender-addon'))
 
 from core import code_generator
 

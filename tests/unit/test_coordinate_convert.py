@@ -9,8 +9,8 @@ import unittest
 import sys
 import os
 
-# Add parent directory to path to import from core
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+# Add blender-addon/ to sys.path so tests can import from core/
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'blender-addon'))
 
 from core.coordinate_convert import convert_position, format_position_comment
 
