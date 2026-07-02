@@ -143,7 +143,28 @@ def validate_scene(scene, selected_only=False, world_type='OUTDOOR'):
                 details=f"Zero scale on {axes_str}: {tuple(obj.scale)}"
             ))
 
-        # 4f. Unnamed/duplicate name check (INFO only)
+        # 4f. Occluder with materials (INFO — materials don't render on depth-only pass).
+        # The check is per-object: if therd_occlusion is set and the object has any
+        # real material slot (not just an empty slot), emit an informational note.
+        # This does not block export — it alerts artists that their material work
+        # on this mesh will be invisible.
+        if getattr(obj, 'therd_occlusion', False):
+            has_materials = any(slot.material for slot in obj.material_slots)
+            if has_materials:
+                errors.append(create_error(
+                    INFO,
+                    obj.name,
+                    f"'{obj.name}' is an occluder — assigned materials will not render",
+                    "Occluder geometry uses depth-write-only rendering; material colour is not visible",
+                    auto_fix_op=None,
+                    details=(
+                        "therd_occlusion is True and the object has material slots. "
+                        "The mesh writes to the depth buffer only — no fragment shading occurs. "
+                        "Materials have no visual effect but are harmless."
+                    )
+                ))
+
+        # 4g. Unnamed/duplicate name check (INFO only)
         if obj.name.startswith("Cube") or obj.name.startswith("Sphere") or \
            obj.name.startswith("Plane") or obj.name.startswith("Cylinder"):
             # Check for .001, .002 pattern indicating duplicates

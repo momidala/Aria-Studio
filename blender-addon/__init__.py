@@ -31,19 +31,35 @@ def register():
     from .operators.export_gravityar import ExportGravityAR
     from .utils.auto_fix import GRAVITYAR_OT_auto_fix
     from .ui.preferences import GravityARPreferences
-    from .ui.export_panel import GRAVITYAR_PT_export_panel
+    from .ui.export_panel import GRAVITYAR_PT_export_panel, GRAVITYAR_PT_object_panel
 
-    # Register in order: preferences first, then operators, then panels
+    # Register in order: preferences first, then operators, then panels.
+    # GRAVITYAR_PT_object_panel must come after its parent GRAVITYAR_PT_export_panel.
     bpy.utils.register_class(GravityARPreferences)
     bpy.utils.register_class(GRAVITYAR_OT_auto_fix)
     bpy.utils.register_class(ExportGravityAR)
     bpy.utils.register_class(GRAVITYAR_PT_export_panel)
+    bpy.utils.register_class(GRAVITYAR_PT_object_panel)
 
     # Register scene property for export panel
     bpy.types.Scene.gravityar_export_selected = bpy.props.BoolProperty(
         name="Selected Only",
         description="Export only selected objects",
         default=False
+    )
+
+    # Per-object occlusion property.
+    # Registered on bpy.types.Object (not material) — one mesh can have multiple
+    # materials but only one occlusion designation (SPEC-ARIA-STUDIO.md §2.11,
+    # 26.8-CONTEXT.md Decision 7).  Default False — normal visible object.
+    bpy.types.Object.therd_occlusion = bpy.props.BoolProperty(
+        name="THerD Occluder",
+        description=(
+            "Mark this object as occlusion geometry. Exported as "
+            "Aria.createOccluder() — depth-write only, hides AR content "
+            "behind real-world surfaces. Materials are not rendered."
+        ),
+        default=False,
     )
 
     # GPS origin scene properties (outdoor worlds).
@@ -97,10 +113,14 @@ def unregister():
     from .operators.export_gravityar import ExportGravityAR
     from .utils.auto_fix import GRAVITYAR_OT_auto_fix
     from .ui.preferences import GravityARPreferences
-    from .ui.export_panel import GRAVITYAR_PT_export_panel
+    from .ui.export_panel import GRAVITYAR_PT_export_panel, GRAVITYAR_PT_object_panel
 
     # Remove from export menu
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
+
+    # Clean up object property
+    if hasattr(bpy.types.Object, "therd_occlusion"):
+        del bpy.types.Object.therd_occlusion
 
     # Clean up scene properties
     if hasattr(bpy.types.Scene, "gravityar_export_selected"):
@@ -113,7 +133,8 @@ def unregister():
         if hasattr(bpy.types.Scene, _prop):
             delattr(bpy.types.Scene, _prop)
 
-    # Unregister classes in reverse order
+    # Unregister classes in reverse order (child panel before parent)
+    bpy.utils.unregister_class(GRAVITYAR_PT_object_panel)
     bpy.utils.unregister_class(GRAVITYAR_PT_export_panel)
     bpy.utils.unregister_class(ExportGravityAR)
     bpy.utils.unregister_class(GRAVITYAR_OT_auto_fix)

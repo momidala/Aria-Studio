@@ -132,6 +132,28 @@ class GRAVITYAR_PT_export_panel(bpy.types.Panel):
             gps_box.prop(scene, "gravityar_gps_altitude")
 
 
+class GRAVITYAR_PT_object_panel(bpy.types.Panel):
+    """THerD Object Properties sub-panel — occlusion designation per object."""
+
+    bl_label = "THerD Object"
+    bl_idname = "VIEW3D_PT_gravityar_object"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'GravityAR'
+    bl_parent_id = "VIEW3D_PT_gravityar"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        """Show only when a mesh object is active."""
+        return context.active_object is not None and context.active_object.type == 'MESH'
+
+    def draw(self, context):
+        layout = self.layout
+        obj = context.active_object
+        layout.prop(obj, "therd_occlusion")
+
+
 # Registration
 def register():
     # Register scene property for Selected Only toggle

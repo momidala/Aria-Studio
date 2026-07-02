@@ -57,6 +57,13 @@ def generate(objects, scene, options=None):
         model_ref = obj_data['model_ref']
         world_matrix = obj_data['world_matrix']
 
+        # Determine the Aria API call to use.
+        # Objects flagged therd_occlusion=True generate Aria.createOccluder()
+        # (depth-write-only pass); all others generate Aria.createObject().
+        # SPEC-GRAVITYAR-API.md §2.3, 26.8-CONTEXT.md Decision 7.
+        is_occluder = obj_data.get('is_occluder', False)
+        aria_create_call = "Aria.createOccluder" if is_occluder else "Aria.createObject"
+
         # Convert transform to THerD coordinate system
         try:
             location, rotation_euler, scale = coordinate_convert.convert_transform(world_matrix)
@@ -74,8 +81,8 @@ def generate(objects, scene, options=None):
             # Add comment with original name and Blender coordinates
             lines.append(f"    // {original_name} ({pos_comment})")
 
-            # Create object
-            lines.append(f'    var {var_name} = Aria.createObject("{original_name}", "{model_ref}");')
+            # Create object or occluder depending on the therd_occlusion flag
+            lines.append(f'    var {var_name} = {aria_create_call}("{original_name}", "{model_ref}");')
 
             # Set position (always include, even if 0,0,0 - explicit is better)
             lines.append(
@@ -123,7 +130,7 @@ def generate(objects, scene, options=None):
             pos_comment = coordinate_convert.format_position_comment(blender_pos, ar_pos)
 
             lines.append(f"    // {original_name} ({pos_comment})")
-            lines.append(f'    var {var_name} = Aria.createObject("{original_name}", "{model_ref}");')
+            lines.append(f'    var {var_name} = {aria_create_call}("{original_name}", "{model_ref}");')
             lines.append(
                 f"    {var_name}.setPosition("
                 f"{format_float(ar_pos[0])}, "

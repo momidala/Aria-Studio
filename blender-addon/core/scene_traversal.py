@@ -90,14 +90,19 @@ def traverse_scene(scene, selected_only=False):
                 used_names[base_name] = 0
                 unique_name = base_name
 
-            # Collect object data
+            # Collect object data.
+            # is_occluder: reads the therd_occlusion BoolProperty registered on
+            # bpy.types.Object in __init__.py.  getattr default False is safe
+            # when the property is unregistered (e.g. during unit tests or
+            # first-install frame before registration completes).
             obj_data = {
                 'object': obj,
                 'name': unique_name,
                 'original_name': obj.name,
                 'world_matrix': obj.matrix_world.copy(),  # CRITICAL: copy to avoid invalidation
                 'parent_name': obj.parent.name if obj.parent else None,
-                'model_ref': f"models/{unique_name}.glb"
+                'model_ref': f"models/{unique_name}.glb",
+                'is_occluder': getattr(obj, 'therd_occlusion', False),
             }
 
             objects.append(obj_data)
