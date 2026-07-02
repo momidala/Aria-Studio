@@ -1,7 +1,7 @@
 # Aria-Studio Context
 
 **Component:** Content Creation Tooling
-**Languages:** Python (Blender), TypeScript (VSCode), Python (CLI)
+**Languages:** Python (Blender), TypeScript (VSCode), C (CLI packager)
 **Purpose:** Enable artists to create AR worlds using familiar tools
 
 ## Architecture Decisions
@@ -44,10 +44,10 @@
   - Real-time error checking
   - Snippet library (common patterns)
 
-- **CLI Tool:** Package validation and creation
+- **CLI Packager:** Package validation and creation (`packaging/therd_package.c`, C/CMake)
   - Validate manifest.json schema
   - Check asset references (no missing files)
-  - Lint Gravity scripts (syntax, API usage)
+  - Compile .grav scripts to .gbc bytecode
   - Create .therd ZIP with compression
 
 ## Integration
@@ -106,25 +106,26 @@ code --install-extension therd-gravity-*.vsix
 - Error checking (undefined variables, type mismatches)
 - Quick fixes (import library, add callback)
 
-### CLI Tool
+### CLI Packager
 
-**Installation:**
+The packaging tool is a C program at `packaging/therd_package.c`, built with CMake.
+There is no Python CLI tool (`cli-tool/` does not exist; `pip install therd-cli` is not how this works).
+
+**Build:**
 ```bash
-pip install therd-cli
+cd packaging && mkdir -p build && cd build && cmake .. && make
 ```
 
 **Usage:**
 ```bash
-therd-package create world/          # Create .therd from directory
-therd-package validate world.therd  # Validate existing package
-therd-package upload world.therd --server http://localhost:8080
+./build/therd-package create --dir world/ --output world.therd
+./build/therd-package validate world.therd
 ```
 
 **Validation Checks:**
 - manifest.json schema compliance
 - entry_script exists and is valid Gravity code
 - All asset references exist in package
-- Texture dimensions ≤ 4096x4096
 - Model sizes ≤ 10MB each
 - Package size ≤ 50MB total
 
@@ -139,19 +140,21 @@ therd-package upload world.therd --server http://localhost:8080
 - TypeScript 4.5+
 - vscode-languageclient
 
-**CLI Tool:**
-- Python 3.9+
-- zipfile (stdlib)
-- jsonschema (validation)
-- Pillow (image processing)
+**CLI Packager:**
+- C99 compiler (gcc/clang)
+- CMake 3.10+
+- cJSON (bundled at `packaging/cjson/`)
+- miniz (bundled at `packaging/miniz.c`)
 
 ## Testing
 
-**Blender Addon Tests:**
+**Blender Addon + Regression Tests (no Blender needed):**
 ```bash
-cd blender-addon
-blender --background --python tests/test_export.py
+python3 -m pytest
 ```
+Collects 30 tests: 20 unit tests in `tests/unit/` (coordinate conversion,
+code generation) and 10 regression tests in `tests/regression/` (Fixes #2, #3, #4, #8).
+Run from the `Aria-Studio/` directory.
 
 **VSCode Extension Tests:**
 ```bash
@@ -159,11 +162,12 @@ cd vscode-extension
 npm test
 ```
 
-**CLI Tests:**
+**CLI Packager (C/CMake — build first, no Python involved):**
 ```bash
-cd cli-tool
-pytest tests/
+cd packaging && mkdir -p build && cd build && cmake .. && make
 ```
+The Fix #4 regression test (`tests/regression/test_regressions.py`) invokes
+the packager binary automatically when it is present at `packaging/build/therd-package`.
 
 ## Related Components
 

@@ -1,7 +1,7 @@
 # Aria-Studio - Content Creation Tooling
 
 **Component:** Content creation tools for THerD Platform
-**Languages:** Python (Blender), TypeScript (VSCode), Python (CLI)
+**Languages:** Python (Blender), TypeScript (VSCode), C (CLI packager)
 **Organization:** Momidala Consulting, LLC
 
 ## Auto-Load Context
@@ -17,7 +17,7 @@ Before working on this component, read these files:
 Aria-Studio provides artist-friendly tools for creating AR worlds:
 - **Blender Addon** - Export 3D scenes to .therd packages
 - **VSCode Extension** - Gravity scripting with IntelliSense
-- **CLI Tool** - Package validation and upload
+- **CLI Packager** - Package validation and bundling (C/CMake, `packaging/therd_package.c`)
 
 **Artist-First Philosophy:**
 - Use familiar tools (Blender, VSCode) - no custom UIs
@@ -30,7 +30,7 @@ Aria-Studio provides artist-friendly tools for creating AR worlds:
 **Implementation work** (here):
 - Blender addon Python code
 - VSCode extension TypeScript code
-- CLI tool implementation
+- CLI packager implementation (C/CMake)
 - Component-specific tests
 - Tool documentation
 
@@ -87,10 +87,12 @@ Aria-Studio provides artist-friendly tools for creating AR worlds:
 
 ## Testing
 
-**Run Blender addon tests:**
+**Run all Python tests (unit + regression, no Blender needed):**
 ```bash
-blender --background --python tests/test_export.py
+python3 -m pytest
 ```
+Runs 30 tests: 20 unit tests in `tests/unit/` (coordinate conversion, code
+generation) and 10 regression tests in `tests/regression/` (Fixes #2, #3, #4, #8).
 
 **Run VSCode extension tests:**
 ```bash
@@ -98,11 +100,12 @@ cd vscode-extension
 npm test
 ```
 
-**Run CLI tests:**
+**Build CLI packager (C/CMake):**
 ```bash
-cd cli-tool
-pytest tests/
+cd packaging && mkdir -p build && cd build && cmake .. && make
+# Binary: packaging/build/therd-package
 ```
+The Fix #4 regression test invokes the packager binary if it is already built.
 
 ## Artist Value Proposition
 
