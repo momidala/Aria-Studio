@@ -20,9 +20,7 @@ import {
     LIGHT_INSTANCE_METHODS,
     GPS_ANCHOR_INSTANCE_METHODS,
     ALL_API_METHODS,
-    buildAriaStaticCompletions,
     buildCompletions,
-    lookupAriaMethodHoverDoc,
     lookupHoverDoc,
 } from '../ariaApi';
 
@@ -38,8 +36,8 @@ test('ARIA_STATIC_METHODS contains createObject entry', () => {
     ok(method.insertText.length > 0, 'insertText must be non-empty');
 });
 
-test('buildAriaStaticCompletions returns a CompletionItem for createObject', () => {
-    const items = buildAriaStaticCompletions();
+test('buildCompletions(ARIA_STATIC_METHODS) returns a CompletionItem for createObject', () => {
+    const items = buildCompletions(ARIA_STATIC_METHODS);
     const item = items.find(c => c.label === 'createObject');
     notStrictEqual(item, undefined, 'createObject should appear in completions');
     ok(item !== undefined);
@@ -47,23 +45,23 @@ test('buildAriaStaticCompletions returns a CompletionItem for createObject', () 
     ok(item.documentation !== undefined, 'completion must have documentation');
 });
 
-test('lookupAriaMethodHoverDoc returns non-null for createObject', () => {
-    const doc = lookupAriaMethodHoverDoc('createObject');
+test('lookupHoverDoc returns non-null for createObject', () => {
+    const doc = lookupHoverDoc(ARIA_STATIC_METHODS, 'createObject');
     notStrictEqual(doc, null, 'hover doc for createObject must not be null');
     ok(doc !== null);
     ok(doc.includes('createObject'), 'hover doc must mention the method name');
 });
 
-test('lookupAriaMethodHoverDoc returns null for unknown method name', () => {
-    strictEqual(lookupAriaMethodHoverDoc('nonExistentMethod'), null);
-    strictEqual(lookupAriaMethodHoverDoc(''), null);
+test('lookupHoverDoc returns null for unknown method name', () => {
+    strictEqual(lookupHoverDoc(ARIA_STATIC_METHODS, 'nonExistentMethod'), null);
+    strictEqual(lookupHoverDoc(ARIA_STATIC_METHODS, ''), null);
 });
 
 test('shared table is the single source: every completion label has a hover doc', () => {
-    const items = buildAriaStaticCompletions();
+    const items = buildCompletions(ARIA_STATIC_METHODS);
     ok(items.length > 0, 'must have at least one completion item');
     for (const item of items) {
-        const doc = lookupAriaMethodHoverDoc(item.label);
+        const doc = lookupHoverDoc(ARIA_STATIC_METHODS, item.label);
         notStrictEqual(
             doc,
             null,
@@ -73,9 +71,9 @@ test('shared table is the single source: every completion label has a hover doc'
 });
 
 test('hover doc content matches completion detail signature', () => {
-    const items = buildAriaStaticCompletions();
+    const items = buildCompletions(ARIA_STATIC_METHODS);
     for (const item of items) {
-        const hoverDoc = lookupAriaMethodHoverDoc(item.label);
+        const hoverDoc = lookupHoverDoc(ARIA_STATIC_METHODS, item.label);
         ok(hoverDoc !== null);
         ok(hoverDoc !== null && item.detail !== undefined);
         ok(hoverDoc.includes(item.label), `hover doc for '${item.label}' should mention the method name`);

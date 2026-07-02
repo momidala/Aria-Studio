@@ -1129,24 +1129,3 @@ export function lookupHoverDoc(
     if (!method) return null;
     return `**${method.signature}**\n\n${method.description}`;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Backward-compat wrappers (used by existing tests and hover.ts)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Build a CompletionItem array from the Aria static method table.
- * @deprecated Use buildCompletions(ARIA_STATIC_METHODS) directly.
- */
-export function buildAriaStaticCompletions(): CompletionItem[] {
-    return buildCompletions(ARIA_STATIC_METHODS);
-}
-
-/**
- * Look up hover documentation for an Aria static method by name.
- * Returns null if the method is not in the Aria static table.
- * @deprecated Use lookupHoverDoc(ARIA_STATIC_METHODS, name) or lookupHoverDoc(ALL_API_METHODS, name).
- */
-export function lookupAriaMethodHoverDoc(methodName: string): string | null {
-    return lookupHoverDoc(ARIA_STATIC_METHODS, methodName);
-}
