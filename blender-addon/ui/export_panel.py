@@ -154,21 +154,6 @@ class GRAVITYAR_PT_object_panel(bpy.types.Panel):
         layout.prop(obj, "therd_occlusion")
 
 
-# Registration
-def register():
-    # Register scene property for Selected Only toggle
-    bpy.types.Scene.gravityar_export_selected = bpy.props.BoolProperty(
-        name="Selected Only",
-        description="Export only selected objects",
-        default=False
-    )
-
-    bpy.utils.register_class(GRAVITYAR_PT_export_panel)
-
-
-def unregister():
-    bpy.utils.unregister_class(GRAVITYAR_PT_export_panel)
-
-    # Clean up scene property
-    if hasattr(bpy.types.Scene, "gravityar_export_selected"):
-        del bpy.types.Scene.gravityar_export_selected
+# NOTE: Registration is centralized in the addon's __init__.py (register()/
+# unregister()), which registers both panel classes and all scene/object
+# properties. Do not add a local register() here.
