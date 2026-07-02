@@ -1,23 +1,136 @@
 {
-  "Create AR World": {
-    "prefix": "world",
-    "description": "Create a new AR world with main entry point",
+  "GravityAR Script Skeleton": {
+    "prefix": "aria-main",
+    "description": "Complete GravityAR script skeleton — extern declarations, main(), onLoad, onUpdate (Phase 27 current API)",
     "body": [
-      "// Main entry point for your AR world",
-      "// This function runs when the world loads",
+      "// === GravityAR Script ===",
+      "extern class Aria;",
+      "extern class GPS;",
+      "extern class Input;",
+      "extern class Audio;",
+      "",
       "func main() {",
-      "\t// Create your AR objects here",
-      "\t${1:var cube = Aria.createObject(\"${2:myObject}\", \"models/${3:cube.gltf}\"\\);}",
-      "\t",
-      "\t// Position the object in 3D space",
-      "\t${1:cube}.setPosition(${4:0.0}, ${5:1.5}, ${6:-2.0});",
-      "\t",
-      "\tSystem.print(\"AR world loaded!\");",
+      "\t// --- Create objects ---",
+      "\tvar ${1:obj} = Aria.createObject(\"${2:name}\", \"models/${3:model.glb}\");",
+      "\tif (${1:obj} != null) {",
+      "\t\t${1:obj}.setPosition(${4:0.0}, ${5:0.0}, ${6:-3.0});",
+      "\t}",
+      "",
+      "\t// --- Lifecycle callbacks ---",
+      "\tAria.onLoad(func() {",
+      "\t\tSystem.print(\"World loaded!\");",
+      "\t\t${7:// One-time setup after all assets are ready}",
+      "\t});",
+      "",
+      "\tAria.onUpdate(func(dt) {",
+      "\t\t${8:// Per-frame logic — dt = seconds since last frame}",
+      "\t});",
+      "",
       "\treturn null;",
       "}",
       "$0"
     ]
   },
+
+  "onUpdate Frame Callback": {
+    "prefix": "aria-update",
+    "description": "Aria.onUpdate per-frame callback skeleton (dt in seconds, clamped to 100ms max)",
+    "body": [
+      "Aria.onUpdate(func(dt) {",
+      "\t// dt = seconds since last frame (clamped to 0.1s)",
+      "\t${1:// Per-frame logic here}",
+      "});",
+      "$0"
+    ]
+  },
+
+  "Network State Pair": {
+    "prefix": "aria-state",
+    "description": "setNetworkState / getNetworkState pair for multiuser shared object state (Phase 23)",
+    "body": [
+      "// Set state (broadcasts to all clients in multiuser worlds)",
+      "${1:obj}.setNetworkState(\"${2:key}\", ${3:value});",
+      "",
+      "// Read state (local value — reflects last set or received broadcast)",
+      "var ${4:stateVal} = ${1:obj}.getNetworkState(\"${2:key}\");",
+      "$0"
+    ]
+  },
+
+  "Animation with Loop": {
+    "prefix": "aria-animate",
+    "description": "playAnimation call with looping enabled and isAnimating guard",
+    "body": [
+      "// Play a named animation from the GLB file",
+      "${1:obj}.setAnimationLoop(true);",
+      "${1:obj}.playAnimation(\"${2:animationName}\");",
+      "",
+      "// Check state from onUpdate:",
+      "// if (!${1:obj}.isAnimating()) { ${1:obj}.playAnimation(\"${2:animationName}\"); }",
+      "$0"
+    ]
+  },
+
+  "Physics Rigid Body + Collision": {
+    "prefix": "aria-physics",
+    "description": "Full physics setup: addRigidBody, addCollisionShape, setMass, applyImpulse, onCollision callback",
+    "body": [
+      "// Attach physics to ${1:obj}",
+      "${1:obj}.addRigidBody(\"${2|dynamic,static,kinematic|}\");",
+      "${1:obj}.addCollisionShape(\"${3|box,sphere,convex|}\");",
+      "${1:obj}.setMass(${4:1.0});",
+      "",
+      "// Optional: apply an initial impulse",
+      "// ${1:obj}.applyImpulse(0.0, ${5:3.0}, 0.0);",
+      "",
+      "// Collision callback — fires once per frame a collision begins",
+      "${1:obj}.onCollision(func(other, contactPoint) {",
+      "\t// other = the object this collided with",
+      "\t// contactPoint.x/y/z = world-space contact location",
+      "\tSystem.print(\"${1:obj} hit something at \" + contactPoint.x + \", \" + contactPoint.y + \", \" + contactPoint.z);",
+      "\t${6:// Handle collision}",
+      "});",
+      "$0"
+    ]
+  },
+
+  "Create Text Node": {
+    "prefix": "aria-text",
+    "description": "Aria.createText billboard node + setText update pattern (Phase 26)",
+    "body": [
+      "// Create a billboard text node (always faces camera)",
+      "var ${1:label} = Aria.createText(\"${2:labelName}\", \"${3:Initial text}\", \"\");",
+      "if (${1:label} != null) {",
+      "\t${1:label}.setPosition(${4:0.0}, ${5:2.0}, ${6:-2.0});",
+      "\t${1:label}.setFontSize(${7:24.0});",
+      "\t${1:label}.setTextColor(1.0, 1.0, 1.0, 1.0);",
+      "}",
+      "",
+      "// Update text later (e.g. inside onUpdate or a callback):",
+      "// ${1:label}.setText(\"Updated: \" + someValue);",
+      "$0"
+    ]
+  },
+
+  "Create Occluder + GPS Anchor": {
+    "prefix": "aria-occluder",
+    "description": "Aria.createOccluder depth-only mesh anchored at a GPS location (Phase 26.8)",
+    "body": [
+      "// Create an occlusion geometry node (depth-only — hides AR objects behind real geometry)",
+      "var ${1:occluder} = Aria.createOccluder(\"${2:occluderName}\", \"models/${3:wall_occluder.glb}\");",
+      "if (${1:occluder} != null) {",
+      "\t// Attach to a real-world GPS location",
+      "\tvar ${4:anchor} = GPS.createAnchor(${5:37.7749}, ${6:-122.4194}, ${7:0.0});",
+      "\t${1:occluder}.setAnchor(${4:anchor});",
+      "\t// Optional: adjust local offset from anchor",
+      "\t// ${1:occluder}.setPosition(0.0, 0.0, 0.0);",
+      "}",
+      "// Note: available methods are transform + anchor + network-state + destroy ONLY.",
+      "// Animation, physics, and appearance methods are blocked on occluder handles.",
+      "$0"
+    ]
+  },
+
   "Create 3D Object": {
     "prefix": ["mesh", "object"],
     "description": "Create a 3D mesh object in AR space",
@@ -25,11 +138,15 @@
       "// Create a 3D object from a model file",
       "var ${1:objectName} = Aria.createObject(",
       "\t\"${2:uniqueName}\",        // Unique identifier for this object",
-      "\t\"models/${3:model.gltf}\"  // Path to GLTF/GLB model file in assets/",
+      "\t\"models/${3:model.glb}\"  // Path to GLB model file in assets/models/",
       ");",
+      "if (${1:objectName} != null) {",
+      "\t${1:objectName}.setPosition(${4:0.0}, ${5:0.0}, ${6:-3.0});",
+      "}",
       "$0"
     ]
   },
+
   "Set Object Position": {
     "prefix": "position",
     "description": "Set object position in 3D space",
@@ -43,22 +160,23 @@
       "$0"
     ]
   },
+
   "Set Object Rotation": {
     "prefix": "rotation",
     "description": "Set object rotation using quaternion",
     "body": [
       "// Set rotation as quaternion (x, y, z, w)",
       "// Tip: Use (0, 0, 0, 1) for no rotation",
-      "// For common rotations, use online quaternion calculator",
       "${1:object}.setRotation(",
       "\t${2:0.0},  // x component",
       "\t${3:0.0},  // y component",
       "\t${4:0.0},  // z component",
-      "\t${5:1.0}   // w component (for no rotation, w=1 and x,y,z=0)",
+      "\t${5:1.0}   // w component (1.0 = no rotation)",
       ");",
       "$0"
     ]
   },
+
   "Set Object Scale": {
     "prefix": "scale",
     "description": "Set object scale (size)",
@@ -72,177 +190,158 @@
       "$0"
     ]
   },
+
   "Create GPS Anchor": {
     "prefix": ["gps", "anchor"],
     "description": "Create GPS anchor for outdoor AR positioning",
     "body": [
       "// Create GPS anchor at real-world location",
-      "// Altitude defaults to terrain height (most common for outdoor AR)",
       "var ${1:anchor} = GPS.createAnchor(",
       "\t${2:37.7749},   // latitude (decimal degrees)",
       "\t${3:-122.4194}, // longitude (decimal degrees)",
-      "\t${4:\"terrain\"}  // altitude mode: \"terrain\" (ground level) or WGS84 ellipsoid height in meters",
+      "\t${4:0.0}        // altitude in meters above sea level",
       ");",
+      "${5:object}.setAnchor(${1:anchor});",
       "$0"
     ]
   },
+
   "Attach Object to GPS Anchor": {
     "prefix": "gpsattach",
     "description": "Attach object to GPS anchor for real-world positioning",
     "body": [
-      "// Attach object to GPS location",
-      "// Object will appear at the anchor's real-world position",
       "${1:object}.setAnchor(${2:anchor});",
       "$0"
     ]
   },
+
   "GPS Distance": {
     "prefix": "gpsdistance",
-    "description": "Calculate distance between GPS coordinates",
+    "description": "Calculate great-circle distance between two GPS anchors",
     "body": [
-      "// Calculate distance in meters between two GPS points",
-      "var ${1:distance} = GPS.distance(",
-      "\t${2:lat1}, ${3:lon1},  // First point (latitude, longitude)",
-      "\t${4:lat2}, ${5:lon2}   // Second point (latitude, longitude)",
-      ");",
+      "// Great-circle distance in meters between two GPS anchors (Haversine formula)",
+      "var ${1:distance} = GPS.distance(${2:anchor1}, ${3:anchor2});",
       "// ${1:distance} is in meters",
       "$0"
     ]
   },
+
   "GPS Bearing": {
     "prefix": "gpsbearing",
-    "description": "Get compass bearing to GPS point",
+    "description": "Get compass bearing from one GPS anchor to another (0–360°, 0=north)",
     "body": [
-      "// Get compass bearing (0-360°) from one GPS point to another",
-      "// 0° = North, 90° = East, 180° = South, 270° = West",
-      "var ${1:bearing} = GPS.bearing(",
-      "\t${2:fromLat}, ${3:fromLon},  // Starting point",
-      "\t${4:toLat}, ${5:toLon}        // Destination point",
-      ");",
-      "// ${1:bearing} is in degrees (0-360)",
+      "// Compass bearing (0–360°) from anchor1 to anchor2 (0=north, 90=east)",
+      "var ${1:bearing} = GPS.bearing(${2:anchor1}, ${3:anchor2});",
+      "// ${1:bearing} is in degrees (0–360)",
       "$0"
     ]
   },
+
   "Tap Handler": {
     "prefix": ["onclick", "tap"],
     "description": "Handle tap/click gesture",
     "body": [
       "// Called when user taps the screen",
       "Input.onTap(func(event) {",
-      "\t// event.x, event.y = tap position in screen coordinates (pixels)",
+      "\t// event.x, event.y = tap position normalized 0.0–1.0",
       "\tSystem.print(\"Tapped at x=\" + event.x + \" y=\" + event.y);",
       "\t$0",
-      "});",
-      ""
+      "});"
     ]
   },
+
   "Double Tap Handler": {
     "prefix": "ondoubletap",
     "description": "Handle double-tap gesture",
     "body": [
-      "// Called when user double-taps the screen",
       "Input.onDoubleTap(func(event) {",
-      "\t// event.x, event.y = tap position",
-      "\tSystem.print(\"Double-tapped at x=\" + event.x + \" y=\" + event.y);",
+      "\t// event.x, event.y = tap position normalized 0.0–1.0",
       "\t$0",
-      "});",
-      ""
+      "});"
     ]
   },
+
+  "Long Press Handler": {
+    "prefix": "onlongpress",
+    "description": "Handle long press gesture (touch held > 500ms)",
+    "body": [
+      "Input.onLongPress(func(event) {",
+      "\t// event.x, event.y = press position normalized 0.0–1.0",
+      "\t$0",
+      "});"
+    ]
+  },
+
   "Swipe Handler": {
     "prefix": "onswipe",
     "description": "Handle swipe gesture",
     "body": [
-      "// Called when user swipes",
       "Input.onSwipe(func(event) {",
-      "\t// event.dx, event.dy = swipe direction vector",
-      "\t// event.velocity = swipe speed",
+      "\t// event.dx, event.dy = swipe direction delta",
+      "\t// event.velocity = swipe speed in pixels per second",
       "\tSystem.print(\"Swiped with velocity \" + event.velocity);",
       "\t$0",
-      "});",
-      ""
+      "});"
     ]
   },
+
   "Pinch Handler": {
     "prefix": "onpinch",
     "description": "Handle pinch/zoom gesture",
     "body": [
-      "// Called when user pinches (two-finger zoom)",
       "Input.onPinch(func(event) {",
-      "\t// event.scale = pinch scale factor",
-      "\t// scale < 1.0 = pinching in (zoom out)",
-      "\t// scale > 1.0 = spreading out (zoom in)",
-      "\tSystem.print(\"Pinched with scale \" + event.scale);",
+      "\t// event.scale > 1.0 = expanding (zoom in), < 1.0 = contracting (zoom out)",
       "\t$0",
-      "});",
-      ""
+      "});"
     ]
   },
+
   "Pan Handler": {
     "prefix": "onpan",
     "description": "Handle pan/drag gesture",
     "body": [
-      "// Called when user pans/drags",
       "Input.onPan(func(event) {",
-      "\t// event.dx, event.dy = drag distance since last frame",
+      "\t// event.dx, event.dy = drag distance since last event",
       "\t// event.x, event.y = current touch position",
-      "\tSystem.print(\"Panned by dx=\" + event.dx + \" dy=\" + event.dy);",
       "\t$0",
-      "});",
-      ""
+      "});"
     ]
   },
+
   "Play Spatial Audio": {
-    "prefix": ["audio", "sound"],
-    "description": "Create spatial audio source at 3D position",
+    "prefix": ["audio3d", "sound3d"],
+    "description": "Play 3D spatial audio at a world-space position",
     "body": [
-      "// Play 3D spatial audio (sound appears to come from a position in space)",
-      "var ${1:audioSource} = Audio.play3D(",
-      "\t\"audio/${2:sound.wav}\",  // Path to audio file in assets/",
-      "\t${3:0.0}, ${4:1.5}, ${5:-2.0},  // x, y, z position in meters",
-      "\t${6:1.0},   // volume (0.0 = silent, 1.0 = full volume)",
-      "\t${7:false}, // loop (true = repeat forever, false = play once)",
-      "\t${8:10.0}   // maxDistance in meters (sound fades beyond this distance)",
+      "var ${1:source} = Audio.play3D(",
+      "\t\"audio/${2:sound.ogg}\",  // Path relative to assets/",
+      "\t${3:0.0}, ${4:0.0}, ${5:-2.0}  // World-space position (x, y, z)",
       ");",
+      "${1:source}.setLoop(${6:false});",
       "$0"
     ]
   },
+
   "Play Background Audio": {
-    "prefix": "audio2d",
-    "description": "Play non-spatial audio (background music/UI sounds)",
+    "prefix": ["audio", "audio2d"],
+    "description": "Play non-spatial (stereo) background audio",
     "body": [
-      "// Play 2D audio (not positioned in 3D space)",
-      "// Good for background music, UI sounds, narration",
-      "var ${1:audioSource} = Audio.play(",
-      "\t\"audio/${2:music.wav}\",  // Path to audio file",
-      "\t${3:1.0},   // volume (0.0 to 1.0)",
-      "\t${4:false}  // loop (true = repeat, false = play once)",
-      ");",
+      "var ${1:music} = Audio.play(\"audio/${2:music.ogg}\");",
+      "${1:music}.setLoop(${3:true});",
+      "${1:music}.setVolume(${4:0.7});",
       "$0"
     ]
   },
+
   "Set Master Volume": {
     "prefix": "volume",
     "description": "Set master volume for all audio",
     "body": [
-      "// Set overall volume for all sounds (0.0 = mute, 1.0 = full)",
+      "// Set overall volume (0.0 = mute, 1.0 = full)",
       "Audio.setMasterVolume(${1:1.0});",
       "$0"
     ]
   },
-  "Update Loop": {
-    "prefix": "update",
-    "description": "Create update loop function (called every frame)",
-    "body": [
-      "// Called every frame - use for animations and continuous updates",
-      "func update(dt) {",
-      "\t// dt = delta time (seconds since last frame)",
-      "\t// Typical dt values: 0.016 for 60fps, 0.033 for 30fps",
-      "\t$0",
-      "}",
-      ""
-    ]
-  },
+
   "Print Debug Message": {
     "prefix": "print",
     "description": "Print debug message to console",
@@ -251,15 +350,14 @@
       "$0"
     ]
   },
+
   "For Loop": {
     "prefix": "forloop",
     "description": "For loop iteration",
     "body": [
-      "// Loop from ${1:0} to ${2:n}-1",
-      "for (var ${3:i} in ${1:0}..${2:n}) {",
+      "for (var ${1:i} = 0; ${1:i} < ${2:n}; ${1:i} = ${1:i} + 1) {",
       "\t$0",
-      "}",
-      ""
+      "}"
     ]
   }
 }
