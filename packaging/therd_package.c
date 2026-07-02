@@ -36,7 +36,8 @@ typedef struct {
 } CompileContext;
 
 /* Forward declarations */
-static int validate_manifest(const char* dir_path, ValidationResult* result);
+static cJSON* read_manifest_json(const char* dir_path, ValidationResult* result);
+static cJSON* validate_manifest(const char* dir_path, ValidationResult* result);
 static int do_create(const char* dir_path, const char* output_path);
 static int do_validate(const char* dir_path);
 static void add_error(ValidationResult* result, const char* error);
@@ -72,16 +73,19 @@ static int pkg_file_exists(const char* path) {
     return (stat(path, &st) == 0 && S_ISREG(st.st_mode));
 }
 
-/* Validate manifest.json */
-static int validate_manifest(const char* dir_path, ValidationResult* result) {
+/*
+ * Read and parse manifest.json from dir_path.
+ * Returns the parsed tree (caller must cJSON_Delete) or NULL on failure,
+ * recording the failure reason in result.
+ */
+static cJSON* read_manifest_json(const char* dir_path, ValidationResult* result) {
     char manifest_path[MAX_PATH_LEN];
     snprintf(manifest_path, sizeof(manifest_path), "%s/manifest.json", dir_path);
 
-    /* Read manifest file */
     FILE* f = fopen(manifest_path, "r");
     if (!f) {
         add_error(result, "manifest.json not found");
-        return 0;
+        return NULL;
     }
 
     fseek(f, 0, SEEK_END);
@@ -91,21 +95,35 @@ static int validate_manifest(const char* dir_path, ValidationResult* result) {
     if (fsize <= 0) {
         fclose(f);
         add_error(result, "manifest.json is empty or unreadable");
-        return 0;
+        return NULL;
     }
     char* content = malloc((size_t)fsize + 1);
-    if (!content) { fclose(f); return 0; }
+    if (!content) { fclose(f); return NULL; }
     fread(content, 1, fsize, f);
     content[fsize] = '\0';
     fclose(f);
 
-    /* Parse JSON */
     cJSON* json = cJSON_Parse(content);
     free(content);
 
     if (!json) {
         add_error(result, "manifest.json is invalid JSON");
-        return 0;
+        return NULL;
+    }
+
+    return json;
+}
+
+/*
+ * Validate manifest.json.
+ * On success returns the parsed manifest tree (caller must cJSON_Delete),
+ * so callers that need the manifest content do not re-read the file.
+ * On validation failure returns NULL with errors recorded in result.
+ */
+static cJSON* validate_manifest(const char* dir_path, ValidationResult* result) {
+    cJSON* json = read_manifest_json(dir_path, result);
+    if (!json) {
+        return NULL;
     }
 
     /* Validate required fields */
@@ -204,8 +222,11 @@ static int validate_manifest(const char* dir_path, ValidationResult* result) {
         }
     }
 
-    cJSON_Delete(json);
-    return (result->error_count == 0);
+    if (result->error_count > 0) {
+        cJSON_Delete(json);
+        return NULL;
+    }
+    return json;
 }
 
 /* Add file to zip archive */
@@ -451,7 +472,10 @@ static int do_create(const char* dir_path, const char* output_path) {
     ValidationResult result = {0};
 
     printf("Validating manifest...\n");
-    if (!validate_manifest(dir_path, &result)) {
+    /* validate_manifest returns the parsed tree on success — reuse it below
+     * for output path and entry_script instead of re-reading the file. */
+    cJSON* manifest_json = validate_manifest(dir_path, &result);
+    if (!manifest_json) {
         fprintf(stderr, "Validation failed:\n");
         for (int i = 0; i < result.error_count; i++) {
             fprintf(stderr, "  - %s\n", result.errors[i]);
@@ -460,28 +484,6 @@ static int do_create(const char* dir_path, const char* output_path) {
         return 1;
     }
     free_validation_result(&result);
-
-    /* Read manifest once for output path and entry_script */
-    char manifest_path[MAX_PATH_LEN];
-    snprintf(manifest_path, sizeof(manifest_path), "%s/manifest.json", dir_path);
-    FILE* f = fopen(manifest_path, "r");
-    if (!f) { fprintf(stderr, "Error: cannot open %s\n", manifest_path); return 1; }
-    fseek(f, 0, SEEK_END);
-    long fsize = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    if (fsize <= 0) {
-        fclose(f);
-        fprintf(stderr, "Error: empty or unreadable file: %s\n", manifest_path);
-        return 1;
-    }
-    char* manifest_content = malloc((size_t)fsize + 1);
-    if (!manifest_content) { fclose(f); return 1; }
-    fread(manifest_content, 1, fsize, f);
-    manifest_content[fsize] = '\0';
-    fclose(f);
-
-    cJSON* manifest_json = cJSON_Parse(manifest_content);
-    free(manifest_content);
 
     /* Determine output path */
     char final_output[MAX_PATH_LEN];
@@ -630,7 +632,9 @@ static int do_create(const char* dir_path, const char* output_path) {
 static int do_validate(const char* dir_path) {
     ValidationResult result = {0};
 
-    if (validate_manifest(dir_path, &result)) {
+    cJSON* manifest = validate_manifest(dir_path, &result);
+    if (manifest) {
+        cJSON_Delete(manifest);
         printf("Valid\n");
         free_validation_result(&result);
         return 0;
