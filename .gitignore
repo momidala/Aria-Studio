@@ -31,6 +31,10 @@ out/
 *.a
 therd-package
 build_pkg/
+build_audit/
+
+# Generated packages (do not commit — built from source)
+*.zip
 
 # Editor files
 .vscode/
