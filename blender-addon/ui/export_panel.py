@@ -9,6 +9,27 @@ from ..core import validator
 from ..utils.error_messages import ERROR, WARNING, INFO
 
 
+def _draw_issue_list(box, issues, noun):
+    """
+    Render the first 3 issues (message, fix hint, optional Auto-Fix button)
+    followed by a "... and N more" line. Shared by the error and warning
+    branches of the export panel.
+    """
+    for issue in issues[:3]:
+        issue_box = box.box()
+        issue_box.label(text=issue['message'])
+        issue_box.label(text=f"Fix: {issue['fix']}", icon='INFO')
+
+        # Auto-fix button if available
+        if issue['auto_fix_op']:
+            op = issue_box.operator("gravityar.auto_fix", text="Auto-Fix", icon='TOOL_SETTINGS')
+            op.fix_type = issue['auto_fix_op']
+            op.object_name = issue['object'] or ""
+
+    if len(issues) > 3:
+        box.label(text=f"... and {len(issues) - 3} more {noun}")
+
+
 class GRAVITYAR_PT_export_panel(bpy.types.Panel):
     """GravityAR Export Panel in 3D View Sidebar"""
 
@@ -50,19 +71,7 @@ class GRAVITYAR_PT_export_panel(bpy.types.Panel):
             row.label(text=f"{len(blocking_errors)} Errors (blocks export)", icon='ERROR')
 
             # Show first 3 errors with auto-fix buttons
-            for error in blocking_errors[:3]:
-                error_box = box.box()
-                error_box.label(text=error['message'])
-                error_box.label(text=f"Fix: {error['fix']}", icon='INFO')
-
-                # Auto-fix button if available
-                if error['auto_fix_op']:
-                    op = error_box.operator("gravityar.auto_fix", text="Auto-Fix", icon='TOOL_SETTINGS')
-                    op.fix_type = error['auto_fix_op']
-                    op.object_name = error['object'] or ""
-
-            if len(blocking_errors) > 3:
-                box.label(text=f"... and {len(blocking_errors) - 3} more errors")
+            _draw_issue_list(box, blocking_errors, "errors")
 
         elif warnings:
             # Warnings only - yellow box
@@ -70,19 +79,7 @@ class GRAVITYAR_PT_export_panel(bpy.types.Panel):
             row.label(text=f"{len(warnings)} Warnings", icon='INFO')
 
             # Show first 3 warnings
-            for warning in warnings[:3]:
-                warning_box = box.box()
-                warning_box.label(text=warning['message'])
-                warning_box.label(text=f"Fix: {warning['fix']}", icon='INFO')
-
-                # Auto-fix button if available
-                if warning['auto_fix_op']:
-                    op = warning_box.operator("gravityar.auto_fix", text="Auto-Fix", icon='TOOL_SETTINGS')
-                    op.fix_type = warning['auto_fix_op']
-                    op.object_name = warning['object'] or ""
-
-            if len(warnings) > 3:
-                box.label(text=f"... and {len(warnings) - 3} more warnings")
+            _draw_issue_list(box, warnings, "warnings")
 
         # 3. Separator
         layout.separator()

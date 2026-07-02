@@ -12,6 +12,36 @@ except ImportError:
     HAS_BLENDER = False
 
 
+def _select_only(obj):
+    """
+    Deselect everything, select and activate obj, and ensure object mode.
+
+    Returns the prior selection list so the caller can pass it to
+    _restore_selection() after the operator runs. Restore is intentionally
+    NOT automatic (no context manager / finally): if an operator raises,
+    the selection is left as-is, matching the original per-fix behavior.
+    """
+    original_selection = bpy.context.selected_objects[:]
+
+    # Deselect all and select only target object
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+
+    # Switch to object mode if needed
+    if bpy.context.mode != 'OBJECT':
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+    return original_selection
+
+
+def _restore_selection(original_selection):
+    """Restore a selection previously captured by _select_only()"""
+    bpy.ops.object.select_all(action='DESELECT')
+    for selected_obj in original_selection:
+        selected_obj.select_set(True)
+
+
 def auto_apply_transforms(obj):
     """
     Apply all transforms (location, rotation, scale) to object
@@ -26,26 +56,12 @@ def auto_apply_transforms(obj):
         return False
 
     try:
-        # Save current mode and selection
-        original_mode = bpy.context.mode
-        original_selection = bpy.context.selected_objects[:]
-
-        # Deselect all and select only target object
-        bpy.ops.object.select_all(action='DESELECT')
-        obj.select_set(True)
-        bpy.context.view_layer.objects.active = obj
-
-        # Switch to object mode if needed
-        if bpy.context.mode != 'OBJECT':
-            bpy.ops.object.mode_set(mode='OBJECT')
+        original_selection = _select_only(obj)
 
         # Apply transforms
         bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 
-        # Restore selection
-        bpy.ops.object.select_all(action='DESELECT')
-        for selected_obj in original_selection:
-            selected_obj.select_set(True)
+        _restore_selection(original_selection)
 
         return True
 
@@ -126,18 +142,7 @@ def auto_recalculate_normals(obj):
         return False
 
     try:
-        # Save current mode and selection
-        original_mode = bpy.context.mode
-        original_selection = bpy.context.selected_objects[:]
-
-        # Deselect all and select only target object
-        bpy.ops.object.select_all(action='DESELECT')
-        obj.select_set(True)
-        bpy.context.view_layer.objects.active = obj
-
-        # Switch to object mode if needed
-        if bpy.context.mode != 'OBJECT':
-            bpy.ops.object.mode_set(mode='OBJECT')
+        original_selection = _select_only(obj)
 
         # Enter edit mode
         bpy.ops.object.mode_set(mode='EDIT')
@@ -151,10 +156,7 @@ def auto_recalculate_normals(obj):
         # Return to object mode
         bpy.ops.object.mode_set(mode='OBJECT')
 
-        # Restore selection
-        bpy.ops.object.select_all(action='DESELECT')
-        for selected_obj in original_selection:
-            selected_obj.select_set(True)
+        _restore_selection(original_selection)
 
         return True
 
