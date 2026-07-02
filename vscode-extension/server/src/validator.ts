@@ -5,6 +5,7 @@ import { promisify } from 'util';
 import { writeFile, unlink } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { findCompiler } from '../../shared/out/findCompiler';
 
 const execFileAsync = promisify(execFile);
 
@@ -31,44 +32,6 @@ function enhanceErrorMessage(original: string): string {
         }
     }
     return original;
-}
-
-async function findCompiler(configuredPath: string): Promise<string | null> {
-    // Try configured path first
-    if (configuredPath && configuredPath.trim() !== '') {
-        try {
-            await execFileAsync(configuredPath, ['--version']);
-            return configuredPath;
-        } catch {
-            // Configured path doesn't work, continue to fallbacks
-        }
-    }
-
-    // Try 'gravity' in PATH
-    try {
-        await execFileAsync('gravity', ['--version']);
-        return 'gravity';
-    } catch {
-        // Not in PATH
-    }
-
-    // Try common locations
-    const commonPaths = [
-        '/usr/local/bin/gravity',
-        '/usr/bin/gravity',
-        join(process.env.HOME ?? '', '.local', 'bin', 'gravity'),
-    ];
-
-    for (const path of commonPaths) {
-        try {
-            await execFileAsync(path, ['--version']);
-            return path;
-        } catch {
-            // This path doesn't work
-        }
-    }
-
-    return null;
 }
 
 export async function validateDocument(

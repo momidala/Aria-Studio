@@ -3,6 +3,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { readdir, readFile } from 'fs/promises';
 import { join } from 'path';
+import { findCompiler } from '../../shared/out/findCompiler';
 
 const execFileAsync = promisify(execFile);
 
@@ -133,44 +134,6 @@ async function compileCurrentFile() {
             vscode.window.showErrorMessage('Compilation failed - see Problems panel for details');
         }
     }
-}
-
-async function findCompiler(configuredPath: string): Promise<string | null> {
-    // Try configured path first
-    if (configuredPath && configuredPath.trim() !== '') {
-        try {
-            await execFileAsync(configuredPath, ['--version']);
-            return configuredPath;
-        } catch {
-            // Configured path doesn't work, continue to fallbacks
-        }
-    }
-
-    // Try 'gravity' in PATH
-    try {
-        await execFileAsync('gravity', ['--version']);
-        return 'gravity';
-    } catch {
-        // Not in PATH
-    }
-
-    // Try common locations
-    const commonPaths = [
-        '/usr/local/bin/gravity',
-        '/usr/bin/gravity',
-        join(process.env.HOME || '', '.local', 'bin', 'gravity'),
-    ];
-
-    for (const path of commonPaths) {
-        try {
-            await execFileAsync(path, ['--version']);
-            return path;
-        } catch {
-            // This path doesn't work
-        }
-    }
-
-    return null;
 }
 
 function extractFirstError(output: string): string | null {

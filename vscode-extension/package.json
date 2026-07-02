@@ -75,10 +75,11 @@
   },
   "scripts": {
     "compile": "npm run compile:client && npm run compile:server",
+    "compile:shared": "tsc -b shared/tsconfig.json",
     "compile:client": "tsc -b client/tsconfig.json",
     "compile:server": "tsc -b server/tsconfig.json",
     "watch": "tsc -b -w",
-    "test": "tsc -p server/tsconfig.test.json && node --test server/out/test/detector.test.js server/out/test/ariaApi.test.js"
+    "test": "npm run compile:shared && tsc -p server/tsconfig.test.json && node --test server/out/test/detector.test.js server/out/test/ariaApi.test.js"
   },
   "devDependencies": {
     "@types/vscode": "^1.74.0",
