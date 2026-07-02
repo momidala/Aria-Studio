@@ -10,6 +10,7 @@ import json
 from bpy.props import StringProperty, BoolProperty
 from bpy_extras.io_utils import ExportHelper
 from ..core import scene_traversal, code_generator, validator
+from ..core.manifest_utils import build_gps_origin
 from ..utils.error_messages import ERROR, WARNING
 
 
@@ -46,8 +47,13 @@ class ExportGravityAR(bpy.types.Operator, ExportHelper):
         else:
             prefs = None
 
+        # Resolve world_type for validation and manifest writing
+        world_type = prefs.world_type if prefs else 'OUTDOOR'
+
         # 0. Validate scene before export
-        errors = validator.validate_scene(context.scene, self.export_selected)
+        errors = validator.validate_scene(
+            context.scene, self.export_selected, world_type=world_type
+        )
         blocking_errors = [e for e in errors if e['severity'] == ERROR]
         warnings = [e for e in errors if e['severity'] == WARNING]
 
@@ -97,9 +103,14 @@ class ExportGravityAR(bpy.types.Operator, ExportHelper):
             )
 
         # 5. Generate manifest.json
+        # Read GPS origin from scene properties (default 0.0 = unset sentinel)
+        gps_lat = getattr(context.scene, 'gravityar_gps_latitude', 0.0)
+        gps_lon = getattr(context.scene, 'gravityar_gps_longitude', 0.0)
+        gps_alt = getattr(context.scene, 'gravityar_gps_altitude', 0.0)
         manifest_path = self._get_manifest_path(self.filepath)
         self._write_manifest(
-            manifest_path, context.scene, exported_models, prefs
+            manifest_path, context.scene, exported_models, prefs,
+            gps_lat, gps_lon, gps_alt,
         )
 
         # 6. Report success
@@ -182,15 +193,23 @@ class ExportGravityAR(bpy.types.Operator, ExportHelper):
         base_dir = os.path.dirname(grav_filepath)
         return os.path.join(base_dir, "manifest.json")
 
-    def _write_manifest(self, manifest_path, scene, exported_models, prefs):
-        """
-        Write manifest.json for world packaging
+    def _write_manifest(
+        self, manifest_path, scene, exported_models, prefs,
+        gps_lat=0.0, gps_lon=0.0, gps_alt=0.0,
+    ):
+        """Write manifest.json for world packaging.
 
         Args:
-            manifest_path: Path to write manifest.json
-            scene: Blender scene
-            exported_models: List of relative model paths
-            prefs: GravityARPreferences instance (or None)
+            manifest_path (str): Path to write manifest.json.
+            scene: Blender scene.
+            exported_models (list): Relative model paths (e.g. 'models/Cube.glb').
+            prefs: GravityARPreferences instance (or None).
+            gps_lat (float): GPS latitude from scene property
+                (gravityar_gps_latitude).  Default 0.0 = unset sentinel.
+            gps_lon (float): GPS longitude from scene property
+                (gravityar_gps_longitude).  Default 0.0 = unset sentinel.
+            gps_alt (float): GPS altitude from scene property
+                (gravityar_gps_altitude).  Default 0.0 = unset sentinel.
         """
         # Base manifest data
         manifest = {
@@ -220,12 +239,10 @@ class ExportGravityAR(bpy.types.Operator, ExportHelper):
                 "world_position": [0, 0, 0]
             }
         else:
-            # Outdoor world - GPS origin (placeholder for artist to fill)
-            manifest["gps_origin"] = {
-                "latitude": 0.0,
-                "longitude": 0.0,
-                "altitude": 0.0
-            }
+            # Outdoor world — embed GPS origin set by the artist in the panel.
+            # If the artist left the default (0, 0, 0) the client treats it as
+            # "unset" (SPEC-MASTER.md §3.2) and validator W7 will have warned.
+            manifest["gps_origin"] = build_gps_origin(gps_lat, gps_lon, gps_alt)
 
         # Write manifest
         with open(manifest_path, 'w', encoding='utf-8') as f:

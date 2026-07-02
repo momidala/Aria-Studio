@@ -12,18 +12,22 @@ except ImportError:
     HAS_BLENDER = False
 
 from ..utils.error_messages import create_error, ERROR, WARNING, INFO
+from .gps_validator import check_gps_origin
 
 
-def validate_scene(scene, selected_only=False):
+def validate_scene(scene, selected_only=False, world_type='OUTDOOR'):
     """
-    Run all validation rules on scene
+    Run all validation rules on scene.
 
     Args:
-        scene: Blender scene to validate
-        selected_only: If True, validate only selected objects
+        scene: Blender scene to validate.
+        selected_only (bool): If True, validate only selected objects.
+        world_type (str): 'OUTDOOR' or 'INDOOR', used for W7 GPS origin check.
+            Callers should pass the value from GravityARPreferences.world_type.
+            Defaults to 'OUTDOOR' (the preference default).
 
     Returns:
-        List of error dicts from error_messages.create_error()
+        list: Error dicts from error_messages.create_error().
     """
     if not HAS_BLENDER:
         return []
@@ -152,5 +156,14 @@ def validate_scene(scene, selected_only=False):
                     auto_fix_op=None,
                     details=f"Default name pattern detected: {obj.name}"
                 ))
+
+    # W7: GPS world with unset origin (scene-level, after per-object checks).
+    # Reads GPS coordinates from scene properties registered in __init__.py.
+    # getattr default 0.0 is safe — unregistered props produce the same sentinel
+    # value that triggers the warning.
+    lat = getattr(scene, 'gravityar_gps_latitude', 0.0)
+    lon = getattr(scene, 'gravityar_gps_longitude', 0.0)
+    alt = getattr(scene, 'gravityar_gps_altitude', 0.0)
+    errors.extend(check_gps_origin(world_type, lat, lon, alt))
 
     return errors

@@ -22,8 +22,13 @@ class GRAVITYAR_PT_export_panel(bpy.types.Panel):
         layout = self.layout
         scene = context.scene
 
-        # 1. Run validation
-        errors = validator.validate_scene(scene, selected_only=False)
+        # Resolve addon preferences (may be absent during first-install frame)
+        addon_prefs = context.preferences.addons.get("blender-addon")
+        prefs = addon_prefs.preferences if addon_prefs else None
+        world_type = prefs.world_type if prefs else 'OUTDOOR'
+
+        # 1. Run validation (pass world_type so W7 can fire for outdoor worlds)
+        errors = validator.validate_scene(scene, selected_only=False, world_type=world_type)
 
         # Separate by severity
         blocking_errors = [e for e in errors if e['severity'] == ERROR]
@@ -112,6 +117,19 @@ class GRAVITYAR_PT_export_panel(bpy.types.Panel):
 
         # Coordinate system info
         info_box.label(text="Blender Z-up → THerD Y-up (automatic)")
+
+        # 6. GPS origin (outdoor/GPS worlds only — hidden for INDOOR worlds)
+        if world_type != 'INDOOR':
+            layout.separator()
+            gps_box = layout.box()
+            gps_box.label(text="World GPS Origin", icon='WORLD')
+            gps_box.label(
+                text="Real-world location of scene [0,0,0]",
+                icon='INFO',
+            )
+            gps_box.prop(scene, "gravityar_gps_latitude")
+            gps_box.prop(scene, "gravityar_gps_longitude")
+            gps_box.prop(scene, "gravityar_gps_altitude")
 
 
 # Registration
