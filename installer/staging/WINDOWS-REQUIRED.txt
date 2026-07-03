@@ -1,0 +1,14 @@
+WINDOWS-REQUIRED FILES
+======================
+
+The following files must be placed in this directory before compiling therd-setup.iss.
+See installer/README.md for exact instructions.
+
+Files needed:
+  therd-desktop.exe   — build on Windows with MSVC + vcpkg (see THerD/docs/WINDOWS-BUILD.md)
+  libEGL.dll          — ANGLE: copy from Chrome, vcpkg angle:x64-windows, or ANGLE releases
+  libGLESv2.dll       — ANGLE: same source as libEGL.dll
+  d3dcompiler_47.dll  — Windows SDK or VS 2022 Redistribution directory
+
+Already present:
+  therd-package.exe   — MinGW cross-build from WSL (PE32+, no extra DLLs required)

@@ -1,0 +1,7 @@
+{
+  "name": "hello-park",
+  "version": "1.0.0",
+  "entry_script": "scripts/hello-park.grav",
+  "author": "THerD Platform",
+  "description": "Sample AR world bundled with the Windows installer — demonstrates text rendering and GPS anchoring without requiring 3D model files."
+}

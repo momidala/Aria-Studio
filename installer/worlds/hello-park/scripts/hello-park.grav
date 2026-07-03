@@ -1,0 +1,50 @@
+// Hello Park — THerD sample world
+// Bundled with the Windows installer so the first simulator launch shows a working world.
+//
+// This world is GLB-free: it uses Aria.createText() instead of 3D model files,
+// so it runs on any platform with no asset dependencies.
+//
+// To view:          therd-desktop --world hello-park.therd
+// To view with GPS: therd-desktop --world hello-park.therd --gps-lat 37.7596 --gps-lon -122.4269
+//
+// API surface demonstrated:
+//   Aria.createText()   — billboard text, always faces the camera  (Phase 26)
+//   GPS.createAnchor()  — pin objects to a real-world location     (Phase 9)
+//   setAnchor()         — attach an object to a GPS anchor
+//   Aria.onUpdate(dt)   — per-frame callback with delta-time       (Phase 16)
+//   System.print()      — debug output visible in the terminal
+
+func main() {
+    // Billboard text labels — uses bundled FreeSans font (empty string = bundled)
+    var title = Aria.createText("title", "Hello Park", "");
+    title.setPosition(0.0, 2.5, -3.0);
+    title.setTextColor(0.2, 0.8, 0.3, 1.0);   // AR green
+
+    var subtitle = Aria.createText("subtitle", "THerD AR Platform", "");
+    subtitle.setPosition(0.0, 1.8, -3.0);
+    subtitle.setTextColor(0.95, 0.95, 0.95, 1.0);  // Near-white
+
+    var controls = Aria.createText("controls", "WASD: move   Right-drag: orbit   Scroll: zoom", "");
+    controls.setPosition(0.0, 1.1, -3.0);
+    controls.setTextColor(0.7, 0.7, 0.7, 0.85);    // Dimmed
+
+    // GPS anchor — pins this world to Dolores Park, San Francisco (elevation 17 m)
+    // The simulator respects this with --gps-lat 37.7596 --gps-lon -122.4269
+    var parkAnchor = GPS.createAnchor(37.7596, -122.4269, 17.0);
+    title.setAnchor(parkAnchor);
+    subtitle.setAnchor(parkAnchor);
+    controls.setAnchor(parkAnchor);
+
+    // Per-frame callback — accumulates elapsed time and updates the subtitle
+    // so artists can see that onUpdate() is firing each frame.
+    var elapsed = 0.0;
+    Aria.onUpdate(func(dt) {
+        elapsed = elapsed + dt;
+    });
+
+    // Confirmation print — visible in the simulator terminal after world load
+    System.print("Hello Park loaded — GPS anchor: Dolores Park, San Francisco");
+    System.print("Run with: therd-desktop --world hello-park.therd");
+
+    return null;
+}

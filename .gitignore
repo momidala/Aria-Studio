@@ -32,6 +32,7 @@ out/
 therd-package
 build_pkg/
 build_audit/
+build_win/
 
 # Generated packages (do not commit — built from source)
 *.zip
@@ -51,3 +52,14 @@ Thumbs.db
 
 # TypeScript incremental build state
 *.tsbuildinfo
+
+# Installer staging kit — pre-built artifacts for installer/dist/ are intentionally
+# committed so the Windows user can compile the installer without rebuilding from source.
+# These negations override the dist/, *.zip, and *.vsix rules above.
+!installer/dist/
+!installer/dist/gravityar-0.1.0.vsix
+!installer/dist/gravityar-blender-1.0.0.zip
+!installer/dist/hello-park.therd
+
+# Compiled installer output — do not commit the resulting .exe or the output/ dir
+installer/output/
