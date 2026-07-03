@@ -53,7 +53,11 @@ target_include_directories(therd-package PRIVATE
     ${GRAVITY_SRC}/optionals
 )
 
-# Gravity needs -lm
+# Gravity needs -lm on POSIX; shlwapi on Windows (PathCombine* used by gravity_utils.c).
+# MinGW does not auto-link via #pragma comment like MSVC, so we add it explicitly.
 target_link_libraries(therd-package m)
+if(WIN32)
+    target_link_libraries(therd-package shlwapi)
+endif()
 
 install(TARGETS therd-package DESTINATION bin)
