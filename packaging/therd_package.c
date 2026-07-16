@@ -177,6 +177,13 @@ static cJSON* validate_manifest(const char* dir_path, ValidationResult* result) 
     cJSON* entry_script = cJSON_GetObjectItem(json, "entry_script");
     if (!entry_script || !cJSON_IsString(entry_script)) {
         add_error(result, "manifest.json: missing 'entry_script' field");
+    } else if (path_escapes_package_dir(entry_script->valuestring)) {
+        /* CR-02: entry_script is the one manifest field do_create() actually
+         * fopen()s/reads and compiles — it must be traversal-checked exactly
+         * like assets/libraries below, and BEFORE the existence check. */
+        char error[MAX_PATH_LEN + 64];
+        snprintf(error, sizeof(error), "entry_script '%s' escapes the package directory", entry_script->valuestring);
+        add_error(result, error);
     } else {
         /* Check entry script exists */
         char script_path[MAX_PATH_LEN];
