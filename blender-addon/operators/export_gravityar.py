@@ -86,14 +86,19 @@ class ExportGravityAR(bpy.types.Operator, ExportHelper):
             )
             # Still create empty .grav file
             empty_code = self._generate_empty_world(context.scene)
-            self._write_grav_file(self.filepath, empty_code)
+            if not self._write_grav_file(self.filepath, empty_code):
+                return {'CANCELLED'}
             return {'FINISHED'}
 
         # 2. Generate Gravity code
         gravity_code = code_generator.generate(objects, context.scene)
 
-        # 3. Write .grav file
-        self._write_grav_file(self.filepath, gravity_code)
+        # 3. Write .grav file (merges with any hand-written artist code below
+        # the generated-section marker; skips the write entirely -- warning
+        # the artist instead -- if an existing file has no marker, per
+        # SPEC-ARIA-STUDIO.md #2.6.2)
+        if not self._write_grav_file(self.filepath, gravity_code):
+            return {'CANCELLED'}
 
         # 4. Export per-object glTF models into models/ subdirectory
         exported_models = []
@@ -132,13 +137,56 @@ class ExportGravityAR(bpy.types.Operator, ExportHelper):
             "    // No mesh objects in scene",
             "    return null;",
             "}",
+            code_generator.END_GENERATED_MARKER,
             ""
         ])
 
     def _write_grav_file(self, filepath, content):
-        """Write Gravity source code to file"""
+        """Write Gravity source code to file, merging with any existing
+        artist section below the end-of-generated marker.
+
+        Re-export behavior (SPEC-ARIA-STUDIO.md #2.6.2):
+        - No existing file: write the freshly generated content as-is.
+        - Existing file WITH the marker: replace the generated section,
+          preserving the artist section that followed the marker
+          byte-for-byte.
+        - Existing file WITHOUT the marker: do NOT overwrite. Warn the
+          artist and leave the file untouched to protect their hand-written
+          code.
+
+        Returns:
+            bool: True if the file was written, False if the write was
+                skipped (no-marker safety case) or could not be read.
+        """
+        existing_text = None
+        if os.path.exists(filepath):
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    existing_text = f.read()
+            except OSError as e:
+                self.report(
+                    {'WARNING'},
+                    f"Could not read existing {os.path.basename(filepath)} to "
+                    f"check for hand-written code ({e}). Export was skipped "
+                    f"to avoid overwriting it blind."
+                )
+                return False
+
+        status, merged_text = code_generator.merge_generated(existing_text, content)
+
+        if status == "no_marker":
+            self.report(
+                {'WARNING'},
+                f"{os.path.basename(filepath)} already exists but has no "
+                f"'{code_generator.END_GENERATED_MARKER}' marker. To protect "
+                f"any code you wrote by hand, this export was skipped. Add "
+                f"the marker manually or back up the file, then re-export."
+            )
+            return False
+
         with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(content)
+            f.write(merged_text)
+        return True
 
     def _export_per_object_gltf(self, context, objects, grav_filepath):
         """Export each mesh object as its own GLB into assets/models/ subdirectory.
