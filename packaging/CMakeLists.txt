@@ -61,3 +61,38 @@ if(WIN32)
 endif()
 
 install(TARGETS therd-package DESTINATION bin)
+
+# --- Tier 1 unit tests (Phase 27.9-03 / SI-1) ---
+# therd_package.c's functions are all `static` with no separate header, so
+# the test source #includes therd_package.c directly (guarded by
+# THERD_PACKAGE_TEST_BUILD, which compiles out therd_package.c's own main())
+# rather than needing a refactor into a library target. This test binary is
+# built from the same sources/include paths/link libs as therd-package
+# itself since therd_package.c still references gravity_compiler_* symbols.
+add_executable(therd-package-unit-tests
+    ${CMAKE_CURRENT_SOURCE_DIR}/../tests/unit/test_therd_package.c
+    cjson/cJSON.c
+    miniz.c
+    ${GRAVITY_SOURCES}
+)
+
+target_include_directories(therd-package-unit-tests PRIVATE
+    cjson
+    ${GRAVITY_SRC}/compiler
+    ${GRAVITY_SRC}/runtime
+    ${GRAVITY_SRC}/shared
+    ${GRAVITY_SRC}/utils
+    ${GRAVITY_SRC}/optionals
+)
+
+# THERD_PACKAGE_TEST_BUILD is defined by test_therd_package.c itself (before
+# its #include of therd_package.c), not here, to avoid a duplicate-definition
+# warning when both this file and the compiler command line define it.
+
+target_link_libraries(therd-package-unit-tests m)
+if(WIN32)
+    target_link_libraries(therd-package-unit-tests shlwapi)
+endif()
+
+enable_testing()
+add_test(NAME therd-package-unit-tests COMMAND therd-package-unit-tests)
