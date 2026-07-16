@@ -241,6 +241,96 @@ class TestCodeGenerator(unittest.TestCase):
         self.assertIn("// GravityAR World", code)
 
 
+class TestObjectNameEscaping(unittest.TestCase):
+    """Tier 1 tests for code_generator._escape_grav_string() / WR-02.
+
+    original_name (raw Blender object name) is interpolated into a
+    double-quoted Gravity string literal argument to Aria.createObject()/
+    Aria.createOccluder(). Unlike var_name/model_ref, it is not run through
+    scene_traversal.sanitize_name(), so an object name containing an
+    embedded '"' must be escaped or it would break out of the string
+    literal and inject arbitrary Gravity source into the distributed
+    world script (27.9-REVIEW.md WR-02).
+    """
+
+    def test_quote_in_object_name_is_escaped(self):
+        """An object name containing a double quote must not break out of
+        the generated string literal on the `var ... = Aria.create...(...)`
+        line (the only place the name is used as executable Gravity code --
+        the preceding comment line is inert and intentionally left
+        unescaped per WR-02's fix note)."""
+        raw_name = 'Cube", "x"); maliciousCall(); //'
+        objects = [{
+            'original_name': raw_name,
+            'name': 'cube',
+            'model_ref': 'models/Cube.glb',
+            'world_matrix': MockMatrix(location=(0, 0, 0))
+        }]
+        scene = MockScene()
+        code = code_generator.generate(objects, scene)
+
+        var_line = next(line for line in code.splitlines() if line.startswith('    var cube ='))
+
+        # The var-declaration line must contain the escaped literal exactly
+        # as _escape_grav_string() would produce, proving the raw quote was
+        # not passed through unescaped into executable code.
+        expected_escaped = code_generator._escape_grav_string(raw_name)
+        self.assertIn(f'"{expected_escaped}"', var_line)
+
+        # Prove the fix actually changed behavior: the naive (pre-fix)
+        # unescaped interpolation would have produced this exact line --
+        # confirm it is NOT what was generated.
+        unsafe_line = (
+            f'    var cube = Aria.createObject("{raw_name}", "models/Cube.glb");'
+        )
+        self.assertNotEqual(var_line, unsafe_line)
+
+    def test_backslash_in_object_name_is_escaped(self):
+        """A literal backslash in an object name must be escaped so a
+        subsequent escape sequence in the raw name cannot be reinterpreted."""
+        raw_name = 'Weird\\"Name'  # actual chars: Weird\"Name
+        objects = [{
+            'original_name': raw_name,
+            'name': 'weirdname',
+            'model_ref': 'models/Weird.glb',
+            'world_matrix': MockMatrix(location=(0, 0, 0))
+        }]
+        scene = MockScene()
+        code = code_generator.generate(objects, scene)
+
+        # Compute the expected escaped form via the module's own helper
+        # rather than hand-counting backslashes, to avoid off-by-one
+        # transcription errors in the test itself.
+        expected_escaped = code_generator._escape_grav_string(raw_name)
+        self.assertIn(f'"{expected_escaped}"', code)
+
+    def test_normal_object_name_unchanged(self):
+        """A normal object name with no special characters is emitted
+        unchanged (no spurious escaping)."""
+        objects = [{
+            'original_name': 'Cube',
+            'name': 'cube',
+            'model_ref': 'models/Cube.glb',
+            'world_matrix': MockMatrix(location=(0, 0, 0))
+        }]
+        scene = MockScene()
+        code = code_generator.generate(objects, scene)
+
+        self.assertIn('Aria.createObject("Cube", "models/Cube.glb")', code)
+
+    def test_escape_helper_quote_and_backslash(self):
+        """_escape_grav_string() escapes backslash before quote, and leaves
+        plain names untouched."""
+        self.assertEqual(code_generator._escape_grav_string('Cube'), 'Cube')
+        self.assertEqual(
+            code_generator._escape_grav_string('Cube"x'), 'Cube\\"x'
+        )
+        self.assertEqual(
+            code_generator._escape_grav_string('back\\slash'),
+            'back\\\\slash'
+        )
+
+
 class TestReexportMerge(unittest.TestCase):
     """Tier 1 tests for code_generator.merge_generated() (SI-2).
 
