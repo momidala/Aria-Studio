@@ -8,6 +8,13 @@
  *   - is_over_size_cap(), the pure helper backing do_create()'s 50 MB
  *     package size cap, is correct at and around the boundary.
  *
+ * Covers CR-02 (Phase 27.9 review remediation):
+ *   - validate_manifest() rejects a traversal entry_script value the same
+ *     way it rejects traversal asset/library paths (entry_script is the
+ *     one manifest field do_create() actually fopen()s/reads and compiles).
+ *   - validate_manifest() still accepts a legitimate relative subpath
+ *     entry_script (e.g. "scripts/main.grav").
+ *
  * therd_package.c has no separate library target — its functions are all
  * `static`. THERD_PACKAGE_TEST_BUILD compiles out therd_package.c's own
  * main() (see the #ifndef guard at the bottom of that file) so this file
@@ -183,6 +190,62 @@ static void test_clean_asset_passes_traversal_check(void) {
     rmdir(tmp_dir);
 }
 
+static void test_entry_script_traversal_rejected(void) {
+    char tmp_dir[256];
+    make_manifest_dir(tmp_dir, sizeof(tmp_dir),
+        "{\"name\":\"t\",\"version\":\"1.0\","
+        "\"entry_script\":\"../../../../home/user/.ssh/id_rsa\"}");
+
+    ValidationResult result = {0};
+    cJSON* json = validate_manifest(tmp_dir, &result);
+    ASSERT_TRUE(json == NULL, "traversal entry_script should fail validation");
+    ASSERT_TRUE(result.error_count > 0, "traversal entry_script should record an error");
+
+    int found = 0;
+    for (int i = 0; i < result.error_count; i++) {
+        if (strstr(result.errors[i], "escapes the package directory")) found = 1;
+    }
+    ASSERT_TRUE(found, "entry_script traversal error message should say 'escapes the package directory'");
+
+    if (json) cJSON_Delete(json);
+    free_validation_result(&result);
+    cleanup_dir(tmp_dir);
+}
+
+static void test_entry_script_legitimate_path_accepted(void) {
+    char tmp_dir[256];
+    snprintf(tmp_dir, sizeof(tmp_dir), "/tmp/therd_pkg_test_XXXXXX");
+    if (!mkdtemp(tmp_dir)) {
+        ASSERT_TRUE(0, "setup: mkdtemp failed");
+        return;
+    }
+
+    char scripts_dir[MAX_PATH_LEN];
+    snprintf(scripts_dir, sizeof(scripts_dir), "%s/scripts", tmp_dir);
+    mkdir(scripts_dir, 0755);
+
+    char entry_path[MAX_PATH_LEN];
+    snprintf(entry_path, sizeof(entry_path), "%s/main.grav", scripts_dir);
+    write_file(entry_path, "func main() {}\n");
+
+    char manifest_path[MAX_PATH_LEN];
+    snprintf(manifest_path, sizeof(manifest_path), "%s/manifest.json", tmp_dir);
+    write_file(manifest_path,
+        "{\"name\":\"t\",\"version\":\"1.0\",\"entry_script\":\"scripts/main.grav\"}");
+
+    ValidationResult result = {0};
+    cJSON* json = validate_manifest(tmp_dir, &result);
+    ASSERT_TRUE(json != NULL, "legitimate entry_script 'scripts/main.grav' should pass validation");
+    ASSERT_TRUE(result.error_count == 0, "legitimate entry_script should record zero errors");
+
+    if (json) cJSON_Delete(json);
+    free_validation_result(&result);
+    remove(entry_path);
+    rmdir(scripts_dir);
+    remove(manifest_path);
+    rmdir(tmp_dir);
+}
+
 /* --- size cap tests (SI-1) --- */
 
 static void test_size_cap_helper(void) {
@@ -198,6 +261,8 @@ int main(void) {
     test_asset_absolute_path_rejected();
     test_library_traversal_rejected();
     test_clean_asset_passes_traversal_check();
+    test_entry_script_traversal_rejected();
+    test_entry_script_legitimate_path_accepted();
     test_size_cap_helper();
 
     if (g_failures > 0) {
