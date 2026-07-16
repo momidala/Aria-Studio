@@ -241,5 +241,92 @@ class TestCodeGenerator(unittest.TestCase):
         self.assertIn("// GravityAR World", code)
 
 
+class TestReexportMerge(unittest.TestCase):
+    """Tier 1 tests for code_generator.merge_generated() (SI-2).
+
+    Proves the mission-critical guarantee: re-exporting from Blender must
+    never silently destroy an artist's hand-written code below the
+    end-of-generated-section marker (SPEC-ARIA-STUDIO.md #2.6.2).
+    """
+
+    def _first_export(self, name='cube'):
+        """Simulate a first export: generate() output for a single object."""
+        objects = [{
+            'original_name': 'Cube',
+            'name': name,
+            'model_ref': 'models/Cube.glb',
+            'world_matrix': MockMatrix(location=(0, 0, 0))
+        }]
+        scene = MockScene()
+        return code_generator.generate(objects, scene)
+
+    def test_reexport_preserves_artist_section(self):
+        """Artist code written below the marker survives a second merge."""
+        first_export = self._first_export()
+        artist_code = "\nfunc onLoad() {\n    myCustomDynamics();\n}\n"
+        existing_file = first_export + artist_code
+
+        second_export = self._first_export()
+        status, merged = code_generator.merge_generated(existing_file, second_export)
+
+        self.assertEqual(status, "merged")
+        self.assertIn("myCustomDynamics()", merged)
+        self.assertIn("func onLoad()", merged)
+
+    def test_reexport_replaces_generated_section(self):
+        """The merged result reflects the NEW generated content, not the old."""
+        first_export = self._first_export()
+        artist_code = "\nfunc onLoad() {\n    myCustomDynamics();\n}\n"
+        existing_file = first_export + artist_code
+
+        # Re-export with a newly added second object.
+        objects = [
+            {
+                'original_name': 'Cube',
+                'name': 'cube',
+                'model_ref': 'models/Cube.glb',
+                'world_matrix': MockMatrix(location=(0, 0, 0))
+            },
+            {
+                'original_name': 'NewSphere',
+                'name': 'newsphere',
+                'model_ref': 'models/NewSphere.glb',
+                'world_matrix': MockMatrix(location=(1, 0, 0))
+            },
+        ]
+        scene = MockScene()
+        second_export = code_generator.generate(objects, scene)
+
+        status, merged = code_generator.merge_generated(existing_file, second_export)
+
+        self.assertEqual(status, "merged")
+        # New object's generated code is present above the marker.
+        self.assertIn('Aria.createObject("NewSphere", "models/NewSphere.glb")', merged)
+        # Artist section is still preserved below the marker.
+        self.assertIn("myCustomDynamics()", merged)
+
+    def test_reexport_no_marker_warns(self):
+        """A markerless existing file yields the no-marker sentinel, never an overwrite."""
+        existing_without_marker = "func main() {\n    // hand-written, no marker\n    return null;\n}\n"
+        new_generated = self._first_export()
+
+        status, merged = code_generator.merge_generated(existing_without_marker, new_generated)
+
+        self.assertEqual(status, "no_marker")
+        self.assertIsNone(merged)
+
+    def test_first_export_no_existing_file(self):
+        """No existing file (None or empty string) returns the fresh content unchanged."""
+        new_generated = self._first_export()
+
+        status_none, text_none = code_generator.merge_generated(None, new_generated)
+        status_empty, text_empty = code_generator.merge_generated("", new_generated)
+
+        self.assertEqual(status_none, "new")
+        self.assertEqual(text_none, new_generated)
+        self.assertEqual(status_empty, "new")
+        self.assertEqual(text_empty, new_generated)
+
+
 if __name__ == '__main__':
     unittest.main()
