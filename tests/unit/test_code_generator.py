@@ -233,8 +233,10 @@ class TestCodeGenerator(unittest.TestCase):
         self.assertIn("func main() {", code)
         # Should have return statement
         self.assertIn("return null;", code)
-        # Should have closing brace
-        self.assertTrue(code.rstrip().endswith("}"))
+        # Should have closing brace, immediately followed by the
+        # end-of-generated-section marker (SPEC-ARIA-STUDIO.md #2.6.2)
+        self.assertIn("}\n" + code_generator.END_GENERATED_MARKER, code)
+        self.assertTrue(code.rstrip().endswith(code_generator.END_GENERATED_MARKER))
         # Should have header comment
         self.assertIn("// GravityAR World", code)
 

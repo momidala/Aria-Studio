@@ -6,6 +6,11 @@ Generates GravityAR Gravity source code from Blender scene data.
 
 from . import coordinate_convert
 
+# End-of-generated-section marker. Must match SPEC-ARIA-STUDIO.md #2.6.2
+# verbatim (including the em-dash) -- merge_generated() locates this exact
+# line to decide what is safe to regenerate vs. what is artist-owned.
+END_GENERATED_MARKER = "// === END GENERATED — YOUR CODE BELOW ==="
+
 
 def format_float(value, precision=4):
     """
@@ -143,6 +148,56 @@ def generate(objects, scene, options=None):
     # Footer
     lines.append("    return null;")
     lines.append("}")
+    lines.append(END_GENERATED_MARKER)
     lines.append("")  # Trailing newline
 
     return "\n".join(lines)
+
+
+def merge_generated(existing_text, new_generated):
+    """
+    Merge freshly generated code with the artist section of an existing
+    .grav file, per SPEC-ARIA-STUDIO.md #2.6.2.
+
+    On re-export, an artist may have hand-written code below the
+    END_GENERATED_MARKER line in the file already on disk. This function
+    preserves that artist section byte-for-byte by splicing the newly
+    generated content (which already ends with the marker) together with
+    everything that followed the marker in existing_text.
+
+    This is a pure text operation -- no file I/O, no bpy. Safe to unit test
+    without Blender.
+
+    Args:
+        existing_text (str or None): Current on-disk .grav file contents.
+            None or "" means there is no existing file (first export).
+        new_generated (str): Freshly generated code from generate(). Must
+            already end with END_GENERATED_MARKER.
+
+    Returns:
+        tuple: (status, text)
+            ("new", new_generated) -- no existing file; caller should write
+                new_generated as-is.
+            ("merged", text) -- existing_text contained the marker; text is
+                the new generated section spliced with the preserved artist
+                section and is safe to write.
+            ("no_marker", None) -- existing_text is non-empty but does NOT
+                contain the marker. The caller MUST NOT overwrite the file;
+                it must warn the artist instead so hand-written code with no
+                recognizable boundary is never silently destroyed.
+    """
+    if not existing_text:
+        return ("new", new_generated)
+
+    marker_index = existing_text.find(END_GENERATED_MARKER)
+    if marker_index == -1:
+        return ("no_marker", None)
+
+    # Everything after the marker line in the existing file is the artist's.
+    artist_section = existing_text[marker_index + len(END_GENERATED_MARKER):]
+
+    # new_generated already ends with "...MARKER\n" (see generate()'s
+    # footer). Strip that trailing newline before appending the preserved
+    # artist section verbatim so we don't duplicate or lose a byte of it.
+    merged = new_generated.rstrip("\n") + artist_section
+    return ("merged", merged)
