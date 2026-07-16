@@ -26,6 +26,13 @@
 #define MAX_PATH_LEN 1024
 #define VERSION "0.1.0"
 
+/* Aria packaging documents a 50 MB package size limit (Aria-Studio/CONTEXT.md:
+ * "Package size <= 50MB"; see also SPEC-ARIA-STUDIO.md section 4.8). Enforced
+ * in do_create() as a running total of uncompressed content bytes added to
+ * the package — the correct metric for guarding against a decompression-bomb
+ * style upload, and conservative vs. the smaller final compressed .therd size. */
+#define PACKAGE_SIZE_CAP_BYTES ((size_t)50 * 1024 * 1024)
+
 typedef struct {
     char** errors;
     int error_count;
@@ -46,10 +53,12 @@ static int do_validate(const char* dir_path);
 static void add_error(ValidationResult* result, const char* error);
 static void free_validation_result(ValidationResult* result);
 static int pkg_file_exists(const char* path);
-static int add_directory_to_zip(mz_zip_archive* zip, const char* base_path, const char* rel_prefix);
-static int add_file_to_zip(mz_zip_archive* zip, const char* file_path, const char* archive_path);
+static int path_escapes_package_dir(const char* path);
+static int is_over_size_cap(size_t total_bytes);
+static int add_directory_to_zip(mz_zip_archive* zip, const char* base_path, const char* rel_prefix, size_t* running_total);
+static int add_file_to_zip(mz_zip_archive* zip, const char* file_path, const char* archive_path, size_t* running_total);
 static char *compile_grav_script(const char* src_path);
-static int compile_scripts_dir(mz_zip_archive* zip, const char* base_path, const char* entry_script, char* compiled_entry);
+static int compile_scripts_dir(mz_zip_archive* zip, const char* base_path, const char* entry_script, char* compiled_entry, size_t* running_total);
 
 /* Add error to validation result */
 static void add_error(ValidationResult* result, const char* error) {
@@ -74,6 +83,31 @@ static void free_validation_result(ValidationResult* result) {
 static int pkg_file_exists(const char* path) {
     struct stat st;
     return (stat(path, &st) == 0 && S_ISREG(st.st_mode));
+}
+
+/*
+ * Reject manifest asset/library paths that could escape the package
+ * directory: a leading '/' (absolute path), a backslash (Windows-style
+ * absolute/parent path), or a '..' path component. Fail-closed — any of
+ * these patterns is rejected before the path is ever used to build a
+ * filesystem path.
+ */
+static int path_escapes_package_dir(const char* path) {
+    if (!path || path[0] == '\0') return 0;
+    if (path[0] == '/') return 1;
+    if (strchr(path, '\\')) return 1;
+    if (strstr(path, "..")) return 1;
+    return 0;
+}
+
+/*
+ * Pure helper so the package size-cap comparison can be unit tested without
+ * assembling a real 50MB+ package on disk. Do not weaken this to make
+ * testing easier elsewhere — the enforcement site (do_create) must call
+ * this exact function.
+ */
+static int is_over_size_cap(size_t total_bytes) {
+    return total_bytes > PACKAGE_SIZE_CAP_BYTES;
 }
 
 /*
@@ -170,6 +204,13 @@ static cJSON* validate_manifest(const char* dir_path, ValidationResult* result) 
                         continue;
                     }
 
+                    if (path_escapes_package_dir(asset->valuestring)) {
+                        char error[MAX_PATH_LEN + 64];
+                        snprintf(error, sizeof(error), "asset '%s' escapes the package directory", asset->valuestring);
+                        add_error(result, error);
+                        continue;
+                    }
+
                     char asset_path[MAX_PATH_LEN];
                     snprintf(asset_path, sizeof(asset_path), "%s/%s", dir_path, asset->valuestring);
                     if (!pkg_file_exists(asset_path)) {
@@ -189,6 +230,13 @@ static cJSON* validate_manifest(const char* dir_path, ValidationResult* result) 
         cJSON_ArrayForEach(lib, libraries) {
             if (!cJSON_IsString(lib)) {
                 add_error(result, "libraries array contains non-string entry");
+                continue;
+            }
+
+            if (path_escapes_package_dir(lib->valuestring)) {
+                char error[MAX_PATH_LEN + 64];
+                snprintf(error, sizeof(error), "library '%s' escapes the package directory", lib->valuestring);
+                add_error(result, error);
                 continue;
             }
 
@@ -232,8 +280,11 @@ static cJSON* validate_manifest(const char* dir_path, ValidationResult* result) 
     return json;
 }
 
-/* Add file to zip archive */
-static int add_file_to_zip(mz_zip_archive* zip, const char* file_path, const char* archive_path) {
+/* Add file to zip archive. running_total tracks cumulative uncompressed
+ * content bytes added to the package so far; the add is refused before
+ * ever calling mz_zip_writer_add_mem if it would push the package over
+ * PACKAGE_SIZE_CAP_BYTES (fail-closed size-cap enforcement, SI-1). */
+static int add_file_to_zip(mz_zip_archive* zip, const char* file_path, const char* archive_path, size_t* running_total) {
     FILE* f = fopen(file_path, "rb");
     if (!f) {
         fprintf(stderr, "Failed to open file: %s\n", file_path);
@@ -249,6 +300,13 @@ static int add_file_to_zip(mz_zip_archive* zip, const char* file_path, const cha
         fprintf(stderr, "Error: empty or unreadable file: %s\n", file_path);
         return 0;
     }
+
+    if (is_over_size_cap(*running_total + (size_t)fsize)) {
+        fclose(f);
+        fprintf(stderr, "Error: package exceeds the 50 MB size limit while adding '%s'\n", archive_path);
+        return 0;
+    }
+
     void* data = malloc((size_t)fsize);
     if (!data) { fclose(f); return 0; }
     fread(data, 1, fsize, f);
@@ -262,11 +320,12 @@ static int add_file_to_zip(mz_zip_archive* zip, const char* file_path, const cha
         return 0;
     }
 
+    *running_total += (size_t)fsize;
     return 1;
 }
 
 /* Recursively add directory to zip */
-static int add_directory_to_zip(mz_zip_archive* zip, const char* base_path, const char* rel_prefix) {
+static int add_directory_to_zip(mz_zip_archive* zip, const char* base_path, const char* rel_prefix, size_t* running_total) {
     DIR* dir = opendir(base_path);
     if (!dir) {
         fprintf(stderr, "Failed to open directory: %s\n", base_path);
@@ -295,12 +354,12 @@ static int add_directory_to_zip(mz_zip_archive* zip, const char* base_path, cons
         }
 
         if (S_ISDIR(st.st_mode)) {
-            if (!add_directory_to_zip(zip, full_path, archive_path)) {
+            if (!add_directory_to_zip(zip, full_path, archive_path, running_total)) {
                 closedir(dir);
                 return 0;
             }
         } else if (S_ISREG(st.st_mode)) {
-            if (!add_file_to_zip(zip, full_path, archive_path)) {
+            if (!add_file_to_zip(zip, full_path, archive_path, running_total)) {
                 closedir(dir);
                 return 0;
             }
@@ -394,7 +453,8 @@ static char *compile_grav_script(const char *src_path) {
  * Returns 1 on success, 0 on error.
  */
 static int compile_scripts_dir(mz_zip_archive *zip, const char *base_path,
-                                const char *entry_script, char *compiled_entry) {
+                                const char *entry_script, char *compiled_entry,
+                                size_t *running_total) {
     DIR *dir = opendir(base_path);
     if (!dir) {
         /* No scripts directory is not an error */
@@ -446,8 +506,16 @@ static int compile_scripts_dir(mz_zip_archive *zip, const char *base_path,
                 }
             }
 
+            size_t bytecode_len = strlen(bytecode);
+            if (is_over_size_cap(*running_total + bytecode_len)) {
+                fprintf(stderr, "Error: package exceeds the 50 MB size limit while adding '%s'\n", archive_path);
+                free(bytecode);
+                closedir(dir);
+                return 0;
+            }
+
             mz_bool ok = mz_zip_writer_add_mem(zip, archive_path,
-                                                bytecode, strlen(bytecode),
+                                                bytecode, bytecode_len,
                                                 MZ_DEFAULT_COMPRESSION);
             free(bytecode);
             if (!ok) {
@@ -455,11 +523,12 @@ static int compile_scripts_dir(mz_zip_archive *zip, const char *base_path,
                 closedir(dir);
                 return 0;
             }
+            *running_total += bytecode_len;
         } else {
             /* Non-.grav file: add as-is */
             char archive_path[MAX_PATH_LEN];
             snprintf(archive_path, sizeof(archive_path), "scripts/%s", entry->d_name);
-            if (!add_file_to_zip(zip, full_path, archive_path)) {
+            if (!add_file_to_zip(zip, full_path, archive_path, running_total)) {
                 closedir(dir);
                 return 0;
             }
@@ -513,6 +582,11 @@ static int do_create(const char* dir_path, const char* output_path) {
         return 1;
     }
 
+    /* Running total of uncompressed content bytes added so far — enforces
+     * the documented 50 MB package size cap (SI-1) fail-closed, before the
+     * archive is finalized. */
+    size_t package_size_accum = 0;
+
     /* Compile scripts/ directory */
     char scripts_path[MAX_PATH_LEN];
     snprintf(scripts_path, sizeof(scripts_path), "%s/scripts", dir_path);
@@ -528,9 +602,10 @@ static int do_create(const char* dir_path, const char* output_path) {
         /* Initialize Gravity core (idempotent) */
         gravity_core_init();
 
-        if (!compile_scripts_dir(&zip, scripts_path, entry_script_val, compiled_entry)) {
+        if (!compile_scripts_dir(&zip, scripts_path, entry_script_val, compiled_entry, &package_size_accum)) {
             mz_zip_writer_end(&zip);
             cJSON_Delete(manifest_json);
+            remove(final_output);
             return 1;
         }
 
@@ -558,6 +633,7 @@ static int do_create(const char* dir_path, const char* output_path) {
                     fprintf(stderr, "Compilation failed: %s\n", entry_full);
                     mz_zip_writer_end(&zip);
                     cJSON_Delete(manifest_json);
+                    remove(final_output);
                     return 1;
                 }
 
@@ -568,16 +644,28 @@ static int do_create(const char* dir_path, const char* output_path) {
                 gbc_name[base_len] = '\0';
                 strncat(gbc_name, ".gbc", sizeof(gbc_name) - strlen(gbc_name) - 1);
 
+                size_t bytecode_len = strlen(bytecode);
+                if (is_over_size_cap(package_size_accum + bytecode_len)) {
+                    fprintf(stderr, "Error: package exceeds the 50 MB size limit while adding '%s'\n", gbc_name);
+                    free(bytecode);
+                    mz_zip_writer_end(&zip);
+                    cJSON_Delete(manifest_json);
+                    remove(final_output);
+                    return 1;
+                }
+
                 mz_bool ok2 = mz_zip_writer_add_mem(&zip, gbc_name,
-                                                     bytecode, strlen(bytecode),
+                                                     bytecode, bytecode_len,
                                                      MZ_DEFAULT_COMPRESSION);
                 free(bytecode);
                 if (!ok2) {
                     fprintf(stderr, "Failed to add compiled entry script to zip\n");
                     mz_zip_writer_end(&zip);
                     cJSON_Delete(manifest_json);
+                    remove(final_output);
                     return 1;
                 }
+                package_size_accum += bytecode_len;
 
                 /* Update manifest entry_script */
                 cJSON_DeleteItemFromObject(manifest_json, "entry_script");
@@ -590,15 +678,26 @@ static int do_create(const char* dir_path, const char* output_path) {
     char *updated_manifest = cJSON_PrintUnformatted(manifest_json);
     cJSON_Delete(manifest_json);
 
+    size_t manifest_len = strlen(updated_manifest);
+    if (is_over_size_cap(package_size_accum + manifest_len)) {
+        fprintf(stderr, "Error: package exceeds the 50 MB size limit while adding 'manifest.json'\n");
+        free(updated_manifest);
+        mz_zip_writer_end(&zip);
+        remove(final_output);
+        return 1;
+    }
+
     mz_bool ok = mz_zip_writer_add_mem(&zip, "manifest.json",
-                                        updated_manifest, strlen(updated_manifest),
+                                        updated_manifest, manifest_len,
                                         MZ_DEFAULT_COMPRESSION);
     free(updated_manifest);
     if (!ok) {
         fprintf(stderr, "Failed to add manifest.json to zip\n");
         mz_zip_writer_end(&zip);
+        remove(final_output);
         return 1;
     }
+    package_size_accum += manifest_len;
 
     /* Add assets/ directory — includes models/, audio/, textures/, fonts/ subdirs.
      * Blender addon writes GLBs to assets/models/; all non-script assets land here. */
@@ -606,8 +705,9 @@ static int do_create(const char* dir_path, const char* output_path) {
     snprintf(assets_path, sizeof(assets_path), "%s/assets", dir_path);
     if (stat(assets_path, &st) == 0 && S_ISDIR(st.st_mode)) {
         printf("Adding assets/...\n");
-        if (!add_directory_to_zip(&zip, assets_path, "assets")) {
+        if (!add_directory_to_zip(&zip, assets_path, "assets", &package_size_accum)) {
             mz_zip_writer_end(&zip);
+            remove(final_output);
             return 1;
         }
     }
@@ -616,6 +716,7 @@ static int do_create(const char* dir_path, const char* output_path) {
     if (!mz_zip_writer_finalize_archive(&zip)) {
         fprintf(stderr, "Failed to finalize zip archive\n");
         mz_zip_writer_end(&zip);
+        remove(final_output);
         return 1;
     }
 
