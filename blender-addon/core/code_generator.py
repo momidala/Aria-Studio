@@ -12,6 +12,28 @@ from . import coordinate_convert
 END_GENERATED_MARKER = "// === END GENERATED — YOUR CODE BELOW ==="
 
 
+def _escape_grav_string(value):
+    """
+    Escape a raw string for safe interpolation into a double-quoted Gravity
+    string literal.
+
+    `original_name` (raw Blender object name, e.g. via obj.name) is NOT
+    sanitized like var_name/model_ref are (see scene_traversal.sanitize_name())
+    -- it is interpolated directly into generated Gravity source as a string
+    literal argument. An object name containing an embedded '"' would
+    otherwise break out of the literal and inject arbitrary Gravity source
+    into the distributed world script. Escape backslash first, then double
+    quote, so an existing literal backslash is not double-counted.
+
+    Args:
+        value: Raw string to escape (e.g. obj.name)
+
+    Returns:
+        str: Escaped string safe to place between double quotes
+    """
+    return value.replace('\\', '\\\\').replace('"', '\\"')
+
+
 def format_float(value, precision=4):
     """
     Format float to specified decimal places.
@@ -62,6 +84,13 @@ def generate(objects, scene, options=None):
         model_ref = obj_data['model_ref']
         world_matrix = obj_data['world_matrix']
 
+        # original_name is the raw Blender object name (unsanitized, unlike
+        # var_name/model_ref). Escape it before interpolating into a
+        # double-quoted Gravity string literal below so a name containing a
+        # literal '"' cannot break out of the literal and inject arbitrary
+        # Gravity source (WR-02).
+        escaped_name = _escape_grav_string(original_name)
+
         # Determine the Aria API call to use.
         # Objects flagged therd_occlusion=True generate Aria.createOccluder()
         # (depth-write-only pass); all others generate Aria.createObject().
@@ -87,7 +116,7 @@ def generate(objects, scene, options=None):
             lines.append(f"    // {original_name} ({pos_comment})")
 
             # Create object or occluder depending on the therd_occlusion flag
-            lines.append(f'    var {var_name} = {aria_create_call}("{original_name}", "{model_ref}");')
+            lines.append(f'    var {var_name} = {aria_create_call}("{escaped_name}", "{model_ref}");')
 
             # Set position (always include, even if 0,0,0 - explicit is better)
             lines.append(
@@ -135,7 +164,7 @@ def generate(objects, scene, options=None):
             pos_comment = coordinate_convert.format_position_comment(blender_pos, ar_pos)
 
             lines.append(f"    // {original_name} ({pos_comment})")
-            lines.append(f'    var {var_name} = {aria_create_call}("{original_name}", "{model_ref}");')
+            lines.append(f'    var {var_name} = {aria_create_call}("{escaped_name}", "{model_ref}");')
             lines.append(
                 f"    {var_name}.setPosition("
                 f"{format_float(ar_pos[0])}, "
