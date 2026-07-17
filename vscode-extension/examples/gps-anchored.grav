@@ -22,7 +22,7 @@ func main() {
     statue.setScale(1.5, 1.5, 1.5);
 
     // Check distance between two GPS points
-    var dist = GPS.distance(37.7749, -122.4194, 37.7750, -122.4193);
+    var dist = GPS.distance({"lat": 37.7749, "lon": -122.4194}, {"lat": 37.7750, "lon": -122.4193});
     System.print("Distance: " + dist + " meters");
 
     return null;

@@ -213,11 +213,11 @@ Launch the simulator with:
 
 ---
 
-### GPS.getPlayerPosition() causes a script error
+### GPS.getPlayerPosition() returns null
 
-**What happened:** `GPS.getPlayerPosition()` requires a GPS tracker initialized in the platform context. In the current desktop simulator, the GPS tracker is not yet wired into `GPS.getPlayerPosition()` — calling it returns an error from the VM.
+**What happened:** `GPS.getPlayerPosition()` requires a GPS tracker initialized in the platform context. If the GPS tracker is not initialized, this function returns `null` and script execution continues (it does not raise an error or halt the VM).
 
-**Fix:** Do not call `GPS.getPlayerPosition()` in scripts targeting the current desktop simulator. Use GPS anchors (`GPS.createAnchor()`) for placing objects at real-world coordinates — anchor placement works correctly. `GPS.getPlayerPosition()` will be connected in a future phase.
+**Fix:** Check the return value before use (`var pos = GPS.getPlayerPosition(); if (pos) { ... }`), or seed a simulated position with `--gps-lat`/`--gps-lon`/`--gps-alt` when launching the desktop simulator. Use GPS anchors (`GPS.createAnchor()`) for placing objects at real-world coordinates — anchor placement works correctly regardless of player-position tracking.
 
 ---
 

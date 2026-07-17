@@ -19,8 +19,3 @@ func main() {
     System.print("Park world loaded with 3 objects");
     return null;
 }
-Aria.// Create a 3D object from a model file
-var objectName = Aria.createObject(
-    "uniqueName",        // Unique identifier for this object
-    "models/model.gltf"  // Path to GLTF/GLB model file in assets/
-);

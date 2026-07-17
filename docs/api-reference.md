@@ -205,7 +205,7 @@ Returns the current GPS position of the player (the AR glasses wearer).
 
 **Returns:** A map with `lat`, `lon`, `alt` float fields. In the simulator, returns the position set via `--gps-lat`/`--gps-lon`/`--gps-alt` flags.
 
-**Current status:** `GPS.getPlayerPosition()` requires a GPS tracker initialized in the platform context. In the desktop simulator as of Phase 12, this function returns an error if the GPS tracker is not yet wired into the platform. Use `--gps-lat`/`--gps-lon`/`--gps-alt` flags to seed the simulated position for anchor calculations.
+**Current status:** `GPS.getPlayerPosition()` requires a GPS tracker initialized in the platform context. If the GPS tracker is not yet wired into the platform, this function returns `null` and script execution continues (it does not halt or raise an error). Use `--gps-lat`/`--gps-lon`/`--gps-alt` flags to seed the simulated position for anchor calculations.
 
 **Example (when GPS tracker is available):**
 ```
@@ -627,6 +627,6 @@ Aria.onUpdate(func(dt) {
 ## Known Limitations
 
 - **Audio decoding not implemented.** `Audio.play()` and `Audio.play3D()` return valid source objects (state transitions work), but no sound is emitted from the speakers in the desktop simulator. Tracked for a future phase.
-- **GPS.getPlayerPosition() requires GPS tracker.** In the current desktop simulator, this function raises an error unless a GPS tracker is initialized in the platform context. Anchor placement via `GPS.createAnchor()` works correctly.
+- **GPS.getPlayerPosition() requires GPS tracker.** Unless a GPS tracker is initialized in the platform context, this function returns `null` and script execution continues (it does not raise an error). Anchor placement via `GPS.createAnchor()` works correctly.
 - **Lifecycle callbacks not yet implemented.** `Aria.onLoad()`, `Aria.onUnload()`, and `Aria.onUpdate()` are planned but not yet registered in the VM. Use `func main()` as the world entry point.
 - **Maximum 16 callbacks per gesture type.** Registering more than 16 handlers for a single gesture type (e.g., 17 `Input.onTap()` calls) will log an error and the extra handlers will not fire.

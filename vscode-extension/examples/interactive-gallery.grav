@@ -12,12 +12,12 @@ func main() {
     sculpture.setScale(0.8, 0.8, 0.8);
 
     // Add background music (non-spatial, plays everywhere)
-    var bgMusic = Audio.play("sounds/ambient-gallery.mp3");
+    var bgMusic = Audio.play("sounds/ambient-gallery.ogg");
 
     // Add spatial audio near the sculpture
     // Sound gets louder as you walk closer
     var sculptureAudio = Audio.play3D(
-        "sounds/artist-commentary.mp3",
+        "sounds/artist-commentary.ogg",
         3.0, 1.0, 0.0  // Same position as sculpture
     );
 
