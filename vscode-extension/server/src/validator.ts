@@ -10,8 +10,8 @@ import { findCompiler } from '../../shared/out/findCompiler';
 const execFileAsync = promisify(execFile);
 
 // Aria runtime classes: registered by VM at runtime, must be declared extern for compiler
-const ARIA_PRECODE = 'extern var Aria;\nextern var Material;\nextern var Light;\n';
-const PRECODE_LINE_COUNT = 3;
+const ARIA_PRECODE = 'extern class Aria;\nextern class Material;\nextern class Light;\nextern class GPS;\nextern class Input;\nextern class Audio;\n';
+const PRECODE_LINE_COUNT = 6;
 
 // Error message enhancements for artist-friendly output
 const errorEnhancements: { pattern: RegExp; friendly: string }[] = [
