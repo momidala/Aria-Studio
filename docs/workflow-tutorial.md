@@ -162,14 +162,22 @@ The CLI packager bundles your manifest, script, and any exported models into a s
 From inside your `therd-kit` folder:
 
 ```bash
-./bin/therd-package ~/ar-worlds/hello-park/ hello-park.therd
+./bin/therd-package create --dir ~/ar-worlds/hello-park/ --output hello-park.therd
 ```
 
 Expected output:
 
 ```
-Package created: hello-park.therd
+Validating manifest...
+Creating package: hello-park.therd
+Compiling scripts/...
+  Compiling hello-park.grav...
+Package created successfully
+  Output: hello-park.therd
+  Size: 1245 bytes
 ```
+
+(The byte size will vary with your script's length.)
 
 The file `hello-park.therd` is a ZIP archive. You can inspect its contents with:
 
@@ -177,7 +185,7 @@ The file `hello-park.therd` is a ZIP archive. You can inspect its contents with:
 unzip -l hello-park.therd
 ```
 
-You should see `manifest.json` and `scripts/hello-park.grav` listed.
+You should see `manifest.json` and `scripts/hello-park.gbc` listed. The packager compiles your `.grav` script to `.gbc` bytecode — the package contains the compiled form, not your source file.
 
 ---
 
@@ -213,10 +221,10 @@ curl -X POST http://localhost:3000/world \
   -H "Content-Type: application/octet-stream"
 ```
 
-Expected response — a JSON object confirming the upload:
+Expected response — a JSON object confirming the upload (the `world_id` value will differ):
 
 ```json
-{"status":"ok","name":"hello-park"}
+{"world_id":"<generated-id>","name":"hello-park","version":"1.0.0","status":"uploaded"}
 ```
 
 If curl reports "Connection refused": make sure the server from Part 5 is still running and listening on port 3000.
@@ -244,7 +252,7 @@ The simulator connects to the server, downloads the `hello-park` world, and load
 Hello Park loaded!
 ```
 
-This confirms the GravityAR script ran to completion. If this line is missing, check that you saved the script after adding the `System.print` call in Part 3.3 and that the package was rebuilt after the edit (repeat Parts 4.2 and 6 if needed).
+This confirms the GravityAR script ran to completion. If this line is missing, check that you saved the script after adding the `System.print` call in Part 3.3 and that the package was rebuilt after the edit (repeat Parts 4 and 6 if needed).
 
 **Camera controls:** Use the same controls as the Getting Started Guide — W/A/S/D to move, right-click drag to orbit, scroll to zoom, middle-click drag to pan.
 

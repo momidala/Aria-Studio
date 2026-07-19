@@ -15,13 +15,13 @@ make
 Validate world directory:
 
 ```bash
-./therd-package validate /path/to/world/
+./therd-package validate --dir /path/to/world/
 ```
 
 Create .therd package:
 
 ```bash
-./therd-package create /path/to/world/
+./therd-package create --dir /path/to/world/ --output world.therd
 ```
 
 ## World Structure

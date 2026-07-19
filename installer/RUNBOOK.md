@@ -204,8 +204,8 @@ cd Aria-Studio && rm -f installer/dist/gravityar-blender-*.zip
 **`hello-park.therd`** (after world/API changes):
 ```bash
 cd Aria-Studio/packaging && cmake -B build && cmake --build build   # Linux packager
+./build/therd-package validate --dir ../installer/worlds/hello-park
 ./build/therd-package create --dir ../installer/worlds/hello-park --output ../installer/dist/hello-park.therd
-./build/therd-package validate ../installer/dist/hello-park.therd
 ```
 
 **Staleness warning (learned 2026-07-02):** the Feb-2026 `.vsix` and addon zip had

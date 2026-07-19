@@ -39,10 +39,10 @@ All commands in this guide run from inside the `therd-kit` folder.
 
 1. Launch Blender.
 2. Go to **Edit > Preferences > Add-ons**.
-3. Click the **Install** button (top right of the Add-ons panel).
+3. Click the small dropdown arrow at the top right of the Add-ons panel and choose **Install from Disk...**.
 4. In the file browser that opens, navigate to the `tools/` folder inside your `therd-kit` directory and select `blender-addon.zip`.
-5. Click **Install Add-on**.
-6. Find "GravityAR Exporter" in the addon list and enable its checkbox.
+5. Click **Install from Disk**.
+6. Find "GravityAR Exporter" in the addon list and enable its checkbox (it may already be enabled after install).
 
 **1b. Verify the addon is working**
 
@@ -93,8 +93,8 @@ From inside the `therd-kit` folder:
 A window opens titled **THerD Desktop Simulator**. The scene shows three cubes on a floor plane. The terminal prints:
 
 ```
-THerD Desktop Simulator
-===============================
+=== THerD Desktop Simulator ===
+World loaded from: data/worlds/test_scene
 Controls: WASD to move, right-click to orbit, scroll to zoom, middle-click to pan, ESC to quit
 ===============================
 ```

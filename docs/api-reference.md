@@ -1,6 +1,6 @@
 # GravityAR API Reference
 
-GravityAR scripts are written in the [Gravity](https://marcobambini.github.io/gravity/) language. Four global modules are available: `Aria`, `GPS`, `Input`, and `Audio`. Scripts have a single entry point: `func main()`.
+GravityAR scripts are written in the [Gravity](https://marcobambini.github.io/gravity/) language. Six global modules are available: `Aria`, `GPS`, `Input`, `Audio`, `Material`, and `Light`. Scripts have a single entry point: `func main()`. This reference covers `Aria`, `GPS`, `Input`, and `Audio`; the newer `Material` and `Light` modules are not yet documented here.
 
 Every script must follow this pattern:
 
@@ -406,7 +406,7 @@ Input.onPinch(func(event) {
 
 The `Audio` module plays sound files. Supported formats: OGG Vorbis (.ogg) and WAV (.wav). File paths are relative to the world package's `assets/` directory.
 
-> **Desktop simulator note:** Audio file decoding is not yet implemented. `Audio.play()` and `Audio.play3D()` return valid `AudioSource` objects and the state machine works (the source transitions to PLAYING), but no sound is emitted from the speakers. This will be addressed in a future phase.
+> **Desktop simulator note:** Audio decoding (OGG Vorbis and WAV) is implemented, and sound plays through the default system audio device. If a file cannot be decoded or found, the source still returns a valid `AudioSource` object but outputs silence — check the terminal for an audio error message.
 
 ### Audio.play(filePath)
 
@@ -575,58 +575,57 @@ if (music.isPlaying()) {
 
 ---
 
-## Aria Lifecycle Callbacks (Not Yet Implemented)
+## Aria Lifecycle Callbacks
 
-> **These callbacks are not yet implemented in the current VM.** They are documented here so artists know what is planned. Use `func main()` as the current world entry point.
+`func main()` remains the world entry point. These callbacks let you run code at other points in the world's life.
 
 ### Aria.onLoad(handler)
 
-**Status: NOT YET IMPLEMENTED**
+Registers a function to call after `main()` completes successfully — the world is loaded and ready for display.
 
-Will register a function to call when the world finishes loading and is ready for display.
+**Parameters:** `handler` (function) — Called with no arguments.
 
-**Planned use:**
+**Returns:** null
+
+**Example:**
 ```
-// Future — does not work yet
 Aria.onLoad(func() {
     System.print("World ready");
 });
 ```
 
-**Current alternative:** Put initialization code at the end of `func main()`. Main runs synchronously after load.
-
 ---
 
 ### Aria.onUnload(handler)
 
-**Status: NOT YET IMPLEMENTED**
+Registers a function to call just before the world is unloaded (when the user navigates away or the simulator shuts down). Use it for cleanup: stopping audio, saving state.
 
-Will register a function to call just before the world is unloaded (when the user navigates away). Intended for cleanup: stopping audio, saving state.
+**Parameters:** `handler` (function) — Called with no arguments.
+
+**Returns:** null
 
 ---
 
 ### Aria.onUpdate(handler)
 
-**Status: NOT YET IMPLEMENTED**
+Registers a function to call every frame, allowing per-frame animation and logic.
 
-Will register a function to call every frame, allowing per-frame animation and logic.
+**Parameters:** `handler` (function) — Called each frame with `dt`, the time since the previous frame in seconds (float).
 
-**Planned use:**
+**Returns:** null
+
+**Example:**
 ```
-// Future — does not work yet
 var angle = 0.0;
 Aria.onUpdate(func(dt) {
     angle = angle + (45.0 * dt);
 });
 ```
 
-**Current alternative:** Static scene setup in `func main()`. Frame-by-frame animation is not currently supported.
-
 ---
 
 ## Known Limitations
 
-- **Audio decoding not implemented.** `Audio.play()` and `Audio.play3D()` return valid source objects (state transitions work), but no sound is emitted from the speakers in the desktop simulator. Tracked for a future phase.
 - **GPS.getPlayerPosition() requires GPS tracker.** Unless a GPS tracker is initialized in the platform context, this function returns `null` and script execution continues (it does not raise an error). Anchor placement via `GPS.createAnchor()` works correctly.
-- **Lifecycle callbacks not yet implemented.** `Aria.onLoad()`, `Aria.onUnload()`, and `Aria.onUpdate()` are planned but not yet registered in the VM. Use `func main()` as the world entry point.
 - **Maximum 16 callbacks per gesture type.** Registering more than 16 handlers for a single gesture type (e.g., 17 `Input.onTap()` calls) will log an error and the extra handlers will not fire.
+- **Newer API surface not covered in this reference.** `Aria.createText()`, `Aria.createOccluder()`, the `Material` and `Light` modules, object states (`addState`/`setState`), and animation (`playAnimation`) exist in the runtime but are not yet documented here. The VSCode extension's autocomplete reflects the full current API.

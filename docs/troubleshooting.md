@@ -71,7 +71,7 @@ This guide covers the most common problems you will encounter. Each entry explai
 1. Edit > Preferences > Add-ons
 2. Search for "GravityAR"
 3. If it appears but is unchecked, enable it
-4. If it does not appear, click "Install" and navigate to `Aria-Studio/blender-addon/__init__.py`
+4. If it does not appear, use the dropdown arrow at the top right of the Add-ons panel, choose "Install from Disk...", and select the addon zip (`blender-addon.zip` — do not select a loose `.py` file; the addon is multi-file and must be installed from the zip)
 5. If enabling fails, check the system console for Python errors: on Windows go to Window > Toggle System Console; on macOS/Linux launch Blender from a terminal and look for tracebacks
 
 ---
