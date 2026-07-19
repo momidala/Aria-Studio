@@ -88,15 +88,34 @@ static int pkg_file_exists(const char* path) {
 /*
  * Reject manifest asset/library paths that could escape the package
  * directory: a leading '/' (absolute path), a backslash (Windows-style
- * absolute/parent path), or a '..' path component. Fail-closed — any of
- * these patterns is rejected before the path is ever used to build a
- * filesystem path.
+ * absolute/parent path), any ':' (Windows drive letter such as
+ * "C:evil.png" or an NTFS Alternate Data Stream name — WR-01), or a
+ * path component that is exactly ".." (IN-02: per-component check, not a
+ * substring match, so benign names like "models/v1..2-final.glb" pass).
+ * Fail-closed — any of these patterns is rejected before the path is
+ * ever used to build a filesystem path. Mirrors the client's
+ * validate_zip_entry_name() component walk (THerD world_loader.h).
  */
 static int path_escapes_package_dir(const char* path) {
     if (!path || path[0] == '\0') return 0;
     if (path[0] == '/') return 1;
     if (strchr(path, '\\')) return 1;
-    if (strstr(path, "..")) return 1;
+    if (strchr(path, ':')) return 1;
+
+    /* Backslashes are already rejected above, so '/' is the only
+     * remaining separator. Walk '/'-delimited components and reject any
+     * component that is exactly "..". */
+    const char* comp_start = path;
+    for (const char* p = path; ; p++) {
+        if (*p == '/' || *p == '\0') {
+            size_t comp_len = (size_t)(p - comp_start);
+            if (comp_len == 2 && comp_start[0] == '.' && comp_start[1] == '.') {
+                return 1;
+            }
+            if (*p == '\0') break;
+            comp_start = p + 1;
+        }
+    }
     return 0;
 }
 

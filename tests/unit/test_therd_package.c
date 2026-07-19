@@ -8,6 +8,15 @@
  *   - is_over_size_cap(), the pure helper backing do_create()'s 50 MB
  *     package size cap, is correct at and around the boundary.
  *
+ * Covers WR-01 / IN-02 (Phase 27.9 review remediation):
+ *   - path_escapes_package_dir() rejects any ':' in a package-relative
+ *     path (Windows drive letter "C:evil.png" / NTFS Alternate Data
+ *     Stream — WR-01).
+ *   - path_escapes_package_dir() uses a per-component '..' check, so a
+ *     benign filename containing a '..' substring (e.g.
+ *     "models/v1..2-final.glb") is accepted while any actual '..'
+ *     component is still rejected (IN-02).
+ *
  * Covers CR-02 (Phase 27.9 review remediation):
  *   - validate_manifest() rejects a traversal entry_script value the same
  *     way it rejects traversal asset/library paths (entry_script is the
@@ -246,6 +255,112 @@ static void test_entry_script_legitimate_path_accepted(void) {
     rmdir(tmp_dir);
 }
 
+/* --- colon / per-component '..' tests (WR-01, IN-02) --- */
+
+static void test_path_escapes_colon_and_component_cases(void) {
+    /* WR-01: any ':' is rejected outright */
+    ASSERT_TRUE(path_escapes_package_dir("C:evil.png"),
+                "drive-letter path 'C:evil.png' must be rejected");
+    ASSERT_TRUE(path_escapes_package_dir("a:b.png"),
+                "mid-string colon 'a:b.png' (NTFS ADS) must be rejected");
+    ASSERT_TRUE(path_escapes_package_dir("models/tex:stream.png"),
+                "colon in a later component must be rejected");
+    ASSERT_TRUE(path_escapes_package_dir("C:\\evil.png"),
+                "'C:\\evil.png' must be rejected");
+    ASSERT_TRUE(path_escapes_package_dir("C:/evil.png"),
+                "'C:/evil.png' must be rejected");
+
+    /* IN-02: '..' is rejected per component, not as a substring */
+    ASSERT_TRUE(path_escapes_package_dir(".."),
+                "bare '..' must be rejected");
+    ASSERT_TRUE(path_escapes_package_dir("../x"),
+                "'../x' must be rejected");
+    ASSERT_TRUE(path_escapes_package_dir("a/../x"),
+                "'a/../x' must be rejected");
+    ASSERT_TRUE(path_escapes_package_dir("a/.."),
+                "trailing '..' component must be rejected");
+    ASSERT_FALSE(path_escapes_package_dir("models/v1..2-final.glb"),
+                 "benign '..' substring 'models/v1..2-final.glb' must be accepted");
+    ASSERT_FALSE(path_escapes_package_dir("a..b/c.png"),
+                 "benign '..' substring in a directory component must be accepted");
+    ASSERT_FALSE(path_escapes_package_dir("models/...glb"),
+                 "three-dot component 'models/...glb' must be accepted");
+
+    /* existing behavior unchanged */
+    ASSERT_TRUE(path_escapes_package_dir("/etc/passwd"),
+                "absolute path must still be rejected");
+    ASSERT_TRUE(path_escapes_package_dir("a\\b.png"),
+                "backslash must still be rejected");
+    ASSERT_FALSE(path_escapes_package_dir("textures/wall.png"),
+                 "clean relative path must still be accepted");
+}
+
+/* IN-02 end-to-end: a benign '..'-substring asset filename passes the full
+ * validate_manifest() flow (traversal check AND existence check). */
+static void test_benign_dotdot_substring_asset_accepted(void) {
+    char tmp_dir[256];
+    snprintf(tmp_dir, sizeof(tmp_dir), "/tmp/therd_pkg_test_XXXXXX");
+    if (!mkdtemp(tmp_dir)) {
+        ASSERT_TRUE(0, "setup: mkdtemp failed");
+        return;
+    }
+
+    char entry_path[MAX_PATH_LEN];
+    snprintf(entry_path, sizeof(entry_path), "%s/main.grav", tmp_dir);
+    write_file(entry_path, "func main() {}\n");
+
+    char models_dir[MAX_PATH_LEN];
+    snprintf(models_dir, sizeof(models_dir), "%s/models", tmp_dir);
+    mkdir(models_dir, 0755);
+
+    char asset_path[MAX_PATH_LEN];
+    snprintf(asset_path, sizeof(asset_path), "%s/v1..2-final.glb", models_dir);
+    write_file(asset_path, "fake-glb-bytes");
+
+    char manifest_path[MAX_PATH_LEN];
+    snprintf(manifest_path, sizeof(manifest_path), "%s/manifest.json", tmp_dir);
+    write_file(manifest_path,
+        "{\"name\":\"t\",\"version\":\"1.0\",\"entry_script\":\"main.grav\","
+        "\"assets\":{\"models\":[\"models/v1..2-final.glb\"]}}");
+
+    ValidationResult result = {0};
+    cJSON* json = validate_manifest(tmp_dir, &result);
+    ASSERT_TRUE(json != NULL, "benign asset 'models/v1..2-final.glb' should pass validation");
+    ASSERT_TRUE(result.error_count == 0, "benign '..' substring asset should record zero errors");
+
+    if (json) cJSON_Delete(json);
+    free_validation_result(&result);
+    remove(asset_path);
+    rmdir(models_dir);
+    remove(entry_path);
+    remove(manifest_path);
+    rmdir(tmp_dir);
+}
+
+/* WR-01 end-to-end: a colon asset path is rejected by validate_manifest()
+ * with the standard traversal error message. */
+static void test_colon_asset_rejected_via_manifest(void) {
+    char tmp_dir[256];
+    make_manifest_dir(tmp_dir, sizeof(tmp_dir),
+        "{\"name\":\"t\",\"version\":\"1.0\",\"entry_script\":\"main.grav\","
+        "\"assets\":{\"textures\":[\"C:evil.png\"]}}");
+
+    ValidationResult result = {0};
+    cJSON* json = validate_manifest(tmp_dir, &result);
+    ASSERT_TRUE(json == NULL, "colon asset 'C:evil.png' should fail validation");
+    ASSERT_TRUE(result.error_count > 0, "colon asset should record an error");
+
+    int found = 0;
+    for (int i = 0; i < result.error_count; i++) {
+        if (strstr(result.errors[i], "escapes the package directory")) found = 1;
+    }
+    ASSERT_TRUE(found, "colon asset error message should say 'escapes the package directory'");
+
+    if (json) cJSON_Delete(json);
+    free_validation_result(&result);
+    cleanup_dir(tmp_dir);
+}
+
 /* --- size cap tests (SI-1) --- */
 
 static void test_size_cap_helper(void) {
@@ -263,6 +378,9 @@ int main(void) {
     test_clean_asset_passes_traversal_check();
     test_entry_script_traversal_rejected();
     test_entry_script_legitimate_path_accepted();
+    test_path_escapes_colon_and_component_cases();
+    test_benign_dotdot_substring_asset_accepted();
+    test_colon_asset_rejected_via_manifest();
     test_size_cap_helper();
 
     if (g_failures > 0) {
