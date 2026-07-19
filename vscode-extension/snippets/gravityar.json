@@ -1,13 +1,10 @@
 {
   "GravityAR Script Skeleton": {
     "prefix": "aria-main",
-    "description": "Complete GravityAR script skeleton — extern declarations, main(), onLoad, onUpdate (Phase 27 current API)",
+    "description": "Complete GravityAR script skeleton — main(), onLoad, onUpdate (Aria classes are pre-registered by the runtime; no extern declarations)",
     "body": [
       "// === GravityAR Script ===",
-      "extern class Aria;",
-      "extern class GPS;",
-      "extern class Input;",
-      "extern class Audio;",
+      "// Aria, GPS, Input, Audio are pre-registered by the runtime — do not declare them.",
       "",
       "func main() {",
       "\t// --- Create objects ---",

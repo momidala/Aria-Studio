@@ -5,18 +5,13 @@ GravityAR scripts are written in the [Gravity](https://marcobambini.github.io/gr
 Every script must follow this pattern:
 
 ```
-extern class Aria;
-extern class GPS;
-extern class Input;
-extern class Audio;
-
 func main() {
     // your code here
     return null;
 }
 ```
 
-The `extern class` declarations tell the Gravity compiler that these classes are provided by the runtime (THerD). They do not need to be imported or required — they are always available.
+Aria classes (`Aria`, `GPS`, `Input`, `Audio`, `Material`, `Light`) are pre-registered by the runtime — do not declare them. They need no `extern` declarations, imports, or requires; they are always available. Adding `extern class Aria;` (or similar) will fail to compile with an "identifier redeclared" error.
 
 ---
 

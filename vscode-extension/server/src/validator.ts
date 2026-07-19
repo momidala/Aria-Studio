@@ -9,9 +9,9 @@ import { findCompiler } from '../../shared/out/findCompiler';
 
 const execFileAsync = promisify(execFile);
 
-// Aria runtime classes: registered by VM at runtime, must be declared extern for compiler
-const ARIA_PRECODE = 'extern class Aria;\nextern class Material;\nextern class Light;\nextern class GPS;\nextern class Input;\nextern class Audio;\n';
-const PRECODE_LINE_COUNT = 6;
+// Aria runtime classes (Aria, GPS, Input, Audio, Material, Light) are pre-registered
+// via the compiler's optional_classes delegate — scripts must NOT declare them extern,
+// and no precode is injected before validation (user ruling 2026-07-19).
 
 // Error message enhancements for artist-friendly output
 const errorEnhancements: { pattern: RegExp; friendly: string }[] = [
@@ -65,7 +65,7 @@ export async function validateDocument(
     const uid = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const tempFile = join(tmpdir(), `gravityar-${uid}.grav`);
     try {
-        await writeFile(tempFile, ARIA_PRECODE + document.getText(), 'utf8');
+        await writeFile(tempFile, document.getText(), 'utf8');
 
         // Run compiler
         try {
@@ -96,7 +96,7 @@ function parseCompilerOutput(output: string, document: TextDocument): Diagnostic
     let match;
 
     while ((match = errorPattern.exec(output)) !== null) {
-        const line = Math.max(0, parseInt(match[1], 10) - 1 - PRECODE_LINE_COUNT); // LSP is 0-based; subtract injected precode lines
+        const line = Math.max(0, parseInt(match[1], 10) - 1); // LSP is 0-based
         const col = match[2] ? parseInt(match[2], 10) - 1 : 0;
         const severityStr = match[3];
         const message = match[4];

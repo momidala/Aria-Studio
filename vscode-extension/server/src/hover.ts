@@ -136,9 +136,9 @@ function getDocumentation(word: string): string | null {
             '**class** — Class Definition\n\n' +
             '**Syntax:**\n```gravity\nclass ClassName {\n    // class body\n}\n```',
         'extern':
-            '**extern** — External Class Declaration\n\n' +
-            'Declares a class registered by the host application (THerD) at runtime.\n\n' +
-            '**Required at script top:**\n```gravity\nextern class Aria;\nextern class GPS;\nextern class Input;\nextern class Audio;\n```',
+            '**extern** — Not needed in GravityAR scripts\n\n' +
+            'Aria classes (`Aria`, `GPS`, `Input`, `Audio`, `Material`, `Light`) are pre-registered by the THerD runtime — do not declare them.\n\n' +
+            'Adding `extern class Aria;` fails to compile with an "identifier redeclared" error. Remove any `extern` declarations from the top of your script.',
         'if':
             '**if** — Conditional Statement\n\n' +
             '**Syntax:**\n```gravity\nif (condition) {\n    // code\n}\n```',

@@ -303,7 +303,6 @@ function getTopLevelCompletions(): CompletionItem[] {
         { label: 'func', kind: CompletionItemKind.Keyword, detail: 'Define function' },
         { label: 'var', kind: CompletionItemKind.Keyword, detail: 'Declare variable' },
         { label: 'class', kind: CompletionItemKind.Keyword, detail: 'Define class' },
-        { label: 'extern', kind: CompletionItemKind.Keyword, detail: 'External class declaration' },
         { label: 'if', kind: CompletionItemKind.Keyword, detail: 'Conditional' },
         { label: 'else', kind: CompletionItemKind.Keyword, detail: 'Else clause' },
         { label: 'while', kind: CompletionItemKind.Keyword, detail: 'While loop' },
